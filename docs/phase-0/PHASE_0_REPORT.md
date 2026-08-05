@@ -1,10 +1,11 @@
 # Phase 0 Report — Daniel's HR Command Center
 
-**Document status:** Minimum-gate draft for Daniel approval  
+**Document status:** Phase 0A package for Daniel + Code Coach approval; Phase 0B proofs remain open  
 **Author:** Carl (Cursor AI)  
-**Date:** August 5, 2026  
+**Date:** August 5, 2026 (revised after Code Coach review)  
 **Timezone:** America/New_York  
-**Authority:** Master roadmap + Daniel Phase 0 decision response (2026-08-05)
+**Authority:** Master roadmap + Daniel Phase 0 decision response (2026-08-05) + Code Coach review  
+**GitHub:** [RVA-Ranks/HRIS-SUite](https://github.com/RVA-Ranks/HRIS-SUite) — baseline [`e80292f`](https://github.com/RVA-Ranks/HRIS-SUite/commit/e80292f40d2ce04e7733c4ee5cc8e1b0c456d10f)
 
 ---
 
@@ -12,9 +13,16 @@
 
 This repository is **greenfield**. There is no existing Next.js/HRIS codebase to integrate. Existing Performance Review, Compensation, compliance, and related workflows live outside this repo as Google Workspace / Apps Script / Adobe Sign systems and must be treated as **reference implementations**, not migration targets.
 
-Phase 0 **minimum gate is not yet closed**. Several proofs require Daniel-supplied access (JazzHR, Google OAuth/Drive, compliance register location). Architecture, stack, security design, queue recommendation, MCP hosting recommendation, and Phase 1 vertical-slice specification are documented below so Phase 1 can start cleanly once blockers clear.
+Phase 0 is split:
 
-**Proceed-to-Phase-1 recommendation:** **Not yet.** Approve open decisions, clear JazzHR hard gate (or fallback), confirm OAuth path, then start Phase 1 shell.
+| Track | Contents | Blocks Phase 1 shell? |
+| --- | --- | --- |
+| **Phase 0A** | Architecture, security, stack, queue+worker auth, MCP hosting shape, classification, Phase 1 spec, repo operating docs | **Yes** — must be approved |
+| **Phase 0B** | Live JazzHR / Google / Drive / external-system proofs | **No** — hard gate for matching/integrations only |
+
+**Blocking before any application code:** GitHub repository must be **Private**.
+
+**Proceed-to-Phase-1 recommendation:** After Phase 0A approval + private repo, start the secure shell while Phase 0B continues in parallel. Do **not** wait on JazzHR résumé bytes to scaffold auth, RBAC, audit, nav, flags, or CI.
 
 ---
 
@@ -22,18 +30,19 @@ Phase 0 **minimum gate is not yet closed**. Several proofs require Daniel-suppli
 
 | Item | Finding |
 | --- | --- |
-| Repository contents | `DANIEL_HRIS_MASTER_IMPLEMENTATION_ROADMAP_FOR_CARL.md` + `docs/phase-0/*` |
+| Repository contents | Roadmap, `README.md`, `AGENTS.md`, `.env.example`, `docs/phase-0/*`, Phase 0 CI workflow |
 | Framework / app code | None |
 | Package manager | N/A |
 | Database / migrations | None |
 | Auth | None |
-| CI/CD | None |
-| Vercel project | Not connected |
-| Tests | None |
-| Git | Initialized empty repo on `master` (no commits at report time) |
-| Secrets in repo | None observed |
+| CI/CD | Docs/secret-scan workflow added (`.github/workflows/phase0-checks.yml`) |
+| Vercel project | Not connected — do not create until private repo + 0A |
+| Tests | Docs CI only |
+| Git | Remote `origin` → `https://github.com/RVA-Ranks/HRIS-SUite.git`; default branch **`main`**; baseline commit **`e80292f`** |
+| Visibility | **Must remain Private** before application code (re-confirmed when fixing CI; grant ChatGPT/Codex GitHub app access explicitly — do not reopen publicly) |
+| Secrets in repo | None observed; `.gitignore` + `.env.example` (names only) |
 
-**Implication:** Phase 1 creates the application from a clean scaffold. Do not “preserve” nonexistent modules.
+**Implication:** Phase 1 creates the application from a clean scaffold on a feature branch + PR. Do not “preserve” nonexistent modules. Do not commit Phase 1 directly to `main`.
 
 ---
 
@@ -142,7 +151,7 @@ UI never calls external APIs directly. Jobs never bypass domain authorization.
 
 ## 4. Integration capability status
 
-### 4.1 JazzHR — HARD GATE
+### 4.1 JazzHR — Phase 0B HARD GATE (matching only)
 
 | Capability | Proven? | Notes |
 | --- | --- | --- |
@@ -156,7 +165,9 @@ UI never calls external APIs directly. Jobs never bypass domain authorization.
 | Candidate export webhook | Unknown | Fallback candidate |
 | Writes | Out of initial scope unless justified | |
 
-**Fallback options if résumé bytes unavailable** (Daniel selects one after proof):
+**Does not block Phase 1 shell** (auth, RBAC, audit, nav, flags, CI, integration-status placeholders).
+
+**Fallback options if résumé bytes unavailable** (Daniel selects one after Phase 0B proof):
 
 1. Metadata + JazzHR links + approved user-triggered bulk ZIP import  
 2. Candidate-notification emails with résumé attachments (if reliable)  
@@ -165,16 +176,29 @@ UI never calls external APIs directly. Jobs never bypass domain authorization.
 
 **Do not scrape.**
 
-### 4.2 Google OAuth / Gmail / Calendar / Drive
+### 4.2 Google OAuth / Gmail / Calendar / Drive — Phase 0B
 
 | Spike | Status |
 | --- | --- |
-| Supabase Auth Google login + allowlist | Design ready; live proof pending Daniel OAuth client / Workspace admin |
-| Gmail read + draft scopes | Pending |
-| Calendar read (+ test write to HRIS calendar) | Pending |
-| Drive approved folders | Pending folder allowlist from Daniel |
+| Supabase Auth Google login + allowlist | Design ready (0A); live proof is 0B |
+| Gmail read + draft scopes | Pending 0B |
+| Calendar read (+ test write to HRIS calendar) | Pending 0B |
+| Drive approved folders | Pending Daniel folder allowlist + app enforcement design (below) |
 
 Nightly incremental Gmail sync is the initial design; Pub/Sub push is later optimization.
+
+#### Drive access model (corrected)
+
+Google OAuth **does not** issue a token restricted to arbitrary approved folder IDs. Distinguish four layers:
+
+| Layer | What it actually controls |
+| --- | --- |
+| OAuth scopes | API surface (e.g. `drive.file` vs broad `drive.readonly`) — see [Google Drive API scopes](https://developers.google.com/drive/api/guides/api-specific-auth) |
+| Connected account permissions | What the signed-in Google identity can see in Drive |
+| Application folder allowlist | Configured approved folder IDs stored in app settings |
+| Server-side validation | Every file ID requested by the app must be verified as under an allowlisted folder (or explicitly user-picked via Picker under `drive.file`) before read/write |
+
+Prefer least-privilege **scopes** (favor `drive.file` + Picker where viable). Separately enforce the **allowlist** in domain services. Never claim “per-folder OAuth.”
 
 ### 4.3 Adobe Sign
 
@@ -273,7 +297,7 @@ Compensation and ER fields require narrower permissions than general employee da
 
 ## 9. OAuth scope list (proposed minimum)
 
-Confirm exact scopes during live Google spike:
+Confirm exact scopes during Phase 0B Google spike:
 
 | Integration | Initial scopes (direction) |
 | --- | --- |
@@ -283,7 +307,7 @@ Confirm exact scopes during live Google spike:
 | Gmail send | Separate later consent; not bundled early |
 | Calendar read | `calendar.readonly` |
 | Calendar write | Only when publishing to dedicated HRIS calendar |
-| Drive | Per-folder least privilege; avoid blanket Drive access |
+| Drive | Prefer non-sensitive `drive.file` (+ Picker) where viable; avoid blanket `drive` / `drive.readonly` unless justified and verified. **Folder allowlisting is application-enforced**, not an OAuth feature. |
 
 Workspace admin verification/consent may be required for internal app use—confirm with Daniel.
 
@@ -404,61 +428,79 @@ Queryable business fields are normalized columns. JSON only for controlled raw p
 
 ---
 
-## 16. Minimum gate vs stretch checklist
+## 16. Phase 0A vs 0B checklist
 
-### Minimum gate
+### Phase 0A — architecture & security (blocks Phase 1 shell)
 
 | Item | Status |
 | --- | --- |
 | Repo confirmation (greenfield) | **Done** |
-| Systems inventory (from Daniel + external posture) | **Partial** — access deepening pending |
-| Credentials/access matrix | **Done as register** — many Unknown |
-| JazzHR résumé proof | **Blocked** — needs Daniel |
-| Google integration proof | **Blocked** — needs Daniel |
-| Queue recommendation | **Done** — awaiting approval |
+| Private repository | **Daniel action required** |
+| README + AGENTS + branch/PR rules | **Done** (this change set) |
+| Locked stack documented | **Done** |
+| Queue recommendation + worker auth boundary | **Done** — awaiting approval |
 | Data-classification/privacy design | **Done (proposal)** — awaiting approval |
+| MCP hosting shape | **Done (design)** |
+| Drive OAuth vs allowlist language corrected | **Done** |
 | Phase 1 vertical-slice specification | **Done** |
-| Decision register | **Done** (`DECISION_REGISTER.md`) |
+| Decision register | **Done** |
+| Docs CI (secret scan + markdown **link** validation) | **Done — verified green on PR #1** (Markdownlint deferred to Phase 1 scaffold) |
 
-### Stretch (optional this round)
+### Phase 0B — live proofs (do not block Phase 1 shell)
 
 | Item | Status |
 | --- | --- |
-| Adobe Sign live-status proof | Not started |
-| Codex SDK recommendation | **Defer** documented |
-| Private MCP hosting recommendation | **Done (design)** |
-| Full 11 journey writeups | Deferred to access-backed inventory |
-| Handbook-export prototype | Not started |
+| JazzHR API + résumé proof / fallback | **Blocked** — needs Daniel |
+| Google OAuth live proof | **Blocked** — needs Daniel |
+| Drive folder allowlist + access proof | **Blocked** — needs Daniel |
+| Review/Comp inventory via Script access | Pending access |
+| Compliance register location | Pending |
+| Adobe Sign live-status (stretch) | Not started |
+| Codex SDK beyond defer | Deferred |
+| Full 11 journey writeups | Deferred |
 
 ---
 
 ## 17. What Carl needs from Daniel next
 
-1. Approve **Trigger.dev** (or choose Inngest).  
-2. Provide JazzHR API access for an isolated, non-committed, read-only spike.  
-3. Confirm Google OAuth path for Supabase (project + Workspace constraints).  
-4. Provide compliance register authoritative link and approved Drive folders.  
-5. Grant read access to Performance Review and Compensation Script/Sheet projects for inventory notes.  
-6. Approve classification/retention proposals (or mark edits).  
-7. Identify second non-prod Google account for RBAC deny tests.  
-8. When ready: provision OpenAI org/project (still no Phase 0 live calls required).
+### Immediate (before application code)
+
+1. Make [RVA-Ranks/HRIS-SUite](https://github.com/RVA-Ranks/HRIS-SUite) **Private**.  
+2. Enable branch protection / rulesets requiring PRs to `main` if desired.  
+3. Approve Phase **0A** package (stack, Trigger.dev + worker auth, classification, MCP hosting shape).  
+
+### Phase 0B (parallel with Phase 1 shell after 0A)
+
+4. JazzHR API key for isolated read-only spike.  
+5. Google OAuth / Workspace path for Supabase Auth.  
+6. Compliance register link + approved Drive folder IDs.  
+7. Read access to Review + Compensation projects.  
+8. Second non-prod Google account for RBAC deny tests.  
+9. OpenAI org/project when ready for AI enablement (not required for Phase 1 shell).
 
 ---
 
 ## 18. Recommendation
 
-**Do not start Phase 1 coding until:**
+**Phase 1 coding** may begin after:
 
-- D06 queue choice approved  
-- D08 JazzHR proof completed **or** Daniel explicitly accepts starting Phase 1 shell with JazzHR deferred (integrations remain disabled)  
-- D05 OAuth path confirmed  
+- Repository is **Private**  
+- Phase **0A** approved by Daniel (+ Code Coach as required)  
+- Queue choice (Trigger.dev) and worker authorization approach approved  
 
-If Daniel prefers momentum, an allowed narrowing is: **Phase 1 shell-only** with all integrations disabled, while JazzHR/Google spikes continue in parallel as Phase 0 remnants—provided the Phase 0 report is marked “architecture approved; integration proofs outstanding.”
+JazzHR/Google **0B** proofs continue in parallel. Integrations remain disabled in the shell until each proof passes.
+
+Do not create Vercel / Supabase / Trigger.dev / Google OAuth / OpenAI **production** connections until private repo, env boundaries, secret ownership, fabricated staging data, and worker authorization are approved.
 
 ---
 
 ## Related files
 
+- `README.md`, `AGENTS.md`, `.env.example`  
 - `docs/phase-0/DECISION_REGISTER.md`  
 - `docs/phase-0/QUEUE_DECISION_MEMO.md`  
-- `DANIEL_HRIS_MASTER_IMPLEMENTATION_ROADMAP_FOR_CARL.md` (Rev 1.3)
+- `docs/phase-0/WORKER_AUTHORIZATION.md`  
+- `docs/phase-0/ACCESS_MATRIX.md`  
+- `docs/phase-0/EVAL_COLLECTION_SCHEMA.md`  
+- `.github/workflows/phase0-checks.yml`  
+- `DANIEL_HRIS_MASTER_IMPLEMENTATION_ROADMAP_FOR_CARL.md` (Rev 1.4)

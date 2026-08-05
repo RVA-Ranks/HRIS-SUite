@@ -1,49 +1,55 @@
 # Phase 0 Decision Register
 
 **Last updated:** August 5, 2026  
-**Rule:** Every unknown stays explicitly unknown. No guessing.
+**Rule:** Every unknown stays explicitly unknown. No guessing.  
+**Tracks:** **0A** = architecture/security (blocks Phase 1 shell). **0B** = live integration proofs (do not block Phase 1 shell).
 
-| ID | Decision | Owner | Evidence | Recommendation | Blocker? | Next action |
-| --- | --- | --- | --- | --- | --- | --- |
-| D01 | Repository posture | Daniel / Carl | Workspace contains only roadmap + Phase 0 docs; `git init` created empty repo on `master` | Treat as **greenfield**. Do not hunt for in-repo HRIS code. | No | Proceed with clean scaffold in Phase 1 after Phase 0 gate |
-| D02 | Existing systems role | Daniel | Reviews/comp are GAS + Sheets; not in this repo | **Reference implementations only** — inventory and link; do not migrate in Phase 0–1 | No | Daniel supplies Drive/Script access for inventory |
-| D03 | App hosting | Daniel | Roadmap rev 1.2 + decision response | **Next.js + TypeScript on Vercel** | No | Create Vercel project when Phase 1 starts |
-| D04 | Database | Daniel | Decision response | **PostgreSQL via Supabase** | No | Create Supabase project (dev) before Phase 1 coding |
-| D05 | Auth | Daniel | Decision response | **Supabase Auth + Google OAuth + AITHERAS email allowlist** | Partial | Daniel: confirm Google Workspace OAuth client / admin consent path |
-| D06 | Durable jobs | Carl → Daniel | `QUEUE_DECISION_MEMO.md` | **Trigger.dev** (alt: Inngest with step constraints) | Yes — needs approval | Daniel approve Trigger.dev or Inngest |
-| D07 | Audience Phases 1–9 | Daniel | Decision response | **Daniel-only** operating scope; RBAC still built; second non-prod test account for permission tests | No | Identify/create second Google test account |
-| D08 | JazzHR API access | Daniel | Unconfirmed | Prove API key/plan + résumé bytes or select fallback | **Yes — hard gate** | Daniel: Integrations → API key; Carl runs isolated read-only spike |
-| D09 | JazzHR résumé fallback | Daniel | Not selectable until D08 fails or succeeds | Prefer API bytes → else ZIP / email attachment / export webhook / link-only | Yes until D08 | After spike, Daniel picks one fallback if needed |
-| D10 | OpenAI org/project/billing | Daniel | Not provisioned | Design matrix only in Phase 0; **no live OpenAI calls** | Soft for Phase 1 shell | Provision org/project before any AI use-case enablement |
-| D11 | AI data retention | Daniel | Roadmap default | Sensitive Responses API: `store: false`; redaction matrix required | Soft | Daniel approves AI data-use matrix before Phase 3+ AI flags |
-| D12 | MCP hosting architecture | Carl → Daniel | OpenAI Secure MCP Tunnel + private server pattern | Private MCP process + **Secure MCP Tunnel** (outbound-only) to ChatGPT/Codex; not Vercel-as-MCP-host | Soft for Phase 1 | Approve hosting shape now; implement in Phase 9 |
-| D13 | Codex SDK for engineering | Carl | Stretch | **Defer** until repo + CI + tests exist | No | Revisit after Phase 1 CI is green |
-| D14 | Compliance register location | Daniel | 108-item register exists; path unknown | Authoritative Drive/Sheet path must be supplied | Yes for Phase 6 import design | Daniel provides link + owner |
-| D15 | Performance Review integration path | Daniel / Carl | GAS: `Code.gs`, `V31_Automation.gs`, `Index.html`; Auto/Manual tabs; Gmail/Calendar/Sign/Form | Link-first; document deep-link/status-read after access | Soft | Grant Apps Script / Sheet read access for inventory |
-| D16 | Compensation integration path | Daniel / Carl | Separate GAS/Sheet + Docs + Drive + Gmail + Sign | Link-first until deep-link/status-read verified | Soft | Grant access for inventory |
-| D17 | Google Drive folders in scope | Daniel | Unknown | Approved folder list required for Drive spike | Yes for Drive proof | Daniel lists HR/recruiting folders |
-| D18 | Gmail scan scope | Daniel | Unknown | Approved senders/labels/queries for nightly scan | Soft for Phase 1; hard for Phase 5 | Daniel drafts initial allowlist |
-| D19 | Email send policy | Daniel | Roadmap default | Draft + explicit final send; optional “Gmail draft only” first | Soft | Confirm whether Phase 5 starts draft-only |
-| D20 | Calendar publish policy | Daniel | Roadmap default | Read-only first; optional dedicated HRIS calendar later | Soft | Confirm dedicated calendar creation allowed |
-| D21 | Adobe Sign API | Daniel | License unknown | Stretch spike only | Soft | Confirm Sign API entitlement |
-| D22 | Evaluation datasets | Daniel | Decision response | Schema + collection process in Phase 0; do **not** block manual MVP | No for Phase 1–2 | Daniel labels examples before grading/email AI |
-| D23 | Document / résumé storage | Daniel | Unknown | Prefer Drive references; controlled app storage only when required | Soft | Decide after JazzHR résumé path known |
-| D24 | Data retention | Daniel | Unknown | Propose defaults; Daniel must approve | Soft | Approve retention proposal in Phase 0 package |
-| D25 | Phase 0 time-box | Daniel | Decision response | Minimum gate vs stretch split | No | Execute min gate; stretch marked optional |
-
----
-
-## Blocker summary (must clear before claiming Phase 0 complete)
-
-1. **D08** — JazzHR API + résumé capability proof (or approved fallback).
-2. **D06** — Queue product approval (Trigger.dev vs Inngest).
-3. **D14 / D17** — Compliance register location + Drive folder allowlist (for inventory completeness; Phase 1 shell can start without them if Daniel accepts deferred inventory).
-4. **D05** — Google OAuth / Workspace admin path confirmed for Supabase Auth.
-
-**Explicitly not required to finish Phase 0 minimum gate:** live OpenAI calls, Adobe Sign live proof, Codex SDK decision beyond “defer,” full journey prose for all 11 flows, handbook export prototype.
+| ID | Track | Decision | Owner | Evidence | Recommendation | Blocker? | Next action |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| D00 | 0A | Repository visibility | Daniel / Carl | Must stay private; ChatGPT/Codex app needs explicit access | Keep **Private**; do not reopen publicly for connector access | **Yes for app code** | Confirm private; grant connector access without making public |
+| D01 | 0A | Repository posture | Daniel / Carl | Greenfield; baseline `e80292f` on `main` | Treat as **greenfield**. Feature branches + PRs for future work | No | Continue docs/PRs; no direct-to-main app commits |
+| D02 | 0A | Existing systems role | Daniel | Reviews/comp are GAS + Sheets | **Reference implementations only** | No | Daniel supplies Drive/Script access for 0B inventory |
+| D03 | 0A | App hosting | Daniel | Locked | **Next.js + TypeScript on Vercel** | No | Create Vercel project only after private repo + 0A |
+| D04 | 0A | Database | Daniel | Locked | **PostgreSQL via Supabase** | No | Create Supabase **dev** after 0A |
+| D05 | 0A/0B | Auth | Daniel | Locked design; live proof 0B | **Supabase Auth + Google OAuth + allowlist** | Soft for shell design; 0B for live login | Confirm Workspace OAuth path |
+| D06 | 0A | Durable jobs | Carl → Daniel | `QUEUE_DECISION_MEMO.md` + official vendor docs | **Trigger.dev** + `WORKER_AUTHORIZATION.md` | Yes — needs 0A approval | Approve Trigger.dev + worker pattern |
+| D07 | 0A | Audience Phases 1–9 | Daniel | Locked | Daniel-only; RBAC + second test account | No | Identify test account |
+| D08 | 0B | JazzHR API + résumés | Daniel | Unconfirmed | Prove API/résumé bytes or select fallback | **Yes for matching**; **No for Phase 1 shell** | Isolated read-only spike |
+| D09 | 0B | JazzHR résumé fallback | Daniel | After D08 | Prefer API bytes → else ZIP / email / webhook / link-only | After D08 | Daniel picks if needed |
+| D10 | 0A | OpenAI org/project | Daniel | Not provisioned | Design matrix only; no live calls in Phase 0 | Soft for Phase 1 shell | Provision before AI flags |
+| D11 | 0A | AI retention | Daniel | Roadmap default | `store: false` for sensitive; matrix required | Soft | Approve AI data-use matrix |
+| D12 | 0A | MCP hosting | Carl → Daniel | Secure MCP Tunnel + private process | Private MCP + OpenAI Secure MCP Tunnel; not Vercel-as-MCP-host | Soft for Phase 1 | Approve shape; implement Phase 9 |
+| D13 | 0A | Codex SDK | Carl | Stretch | **Defer** until CI/tests exist | No | Revisit after Phase 1 CI |
+| D14 | 0B | Compliance register | Daniel | Path unknown | Supply authoritative Drive/Sheet link | Yes for Phase 6 import | Daniel provides link |
+| D15 | 0B | Performance Review path | Daniel / Carl | GAS artifacts known | Link-first after access | Soft | Grant Script/Sheet access |
+| D16 | 0B | Compensation path | Daniel / Carl | GAS/Sheet/Docs/Sign | Link-first; highly restricted | Soft | Grant access |
+| D17 | 0B | Drive folders | Daniel | Unknown | App allowlist + server-side file validation; scopes ≠ folders | Yes for Drive proof | Daniel lists folder IDs |
+| D18 | 0B | Gmail scan scope | Daniel | Unknown | Approved senders/labels | Soft for Phase 1; hard for Phase 5 | Draft allowlist |
+| D19 | 0A | Email send policy | Daniel | Roadmap default | Draft + explicit send | Soft | Confirm Phase 5 draft-only start |
+| D20 | 0A | Calendar publish | Daniel | Roadmap default | Read-only first | Soft | Confirm dedicated calendar |
+| D21 | 0B | Adobe Sign API | Daniel | Unknown | Stretch spike | Soft | Confirm entitlement |
+| D22 | 0A | Evaluation datasets | Daniel | Locked | Schema now; labels before grading/email AI | No for Phase 1–2 | Label before AI enablement |
+| D23 | 0A/0B | Document storage | Daniel | Unknown | Drive references preferred | Soft | Decide after JazzHR path |
+| D24 | 0A | Data retention | Daniel | Proposal in report | Daniel must approve | Soft | Approve or edit proposal |
+| D25 | 0A | Phase 0 split | Daniel / Code Coach | Review | **0A vs 0B**; Phase 1 after 0A | No | Approve 0A package |
+| D26 | 0A | Worker ↔ Supabase | Carl → Daniel | `WORKER_AUTHORIZATION.md` | **Pattern C selected**: signed automation identity → internal domain API; no service-role for routine workers; A/B later optimizations | Soft — provisional 0A approve | Confirm Pattern C; audit fields include automation identity + job ID |
 
 ---
 
-## Decision response already locked (2026-08-05)
+## Blocker summary
 
-See Daniel’s Phase 0 decision response in chat and Revision 1.3 of the master roadmap: greenfield; locked stack; JazzHR hard gate; no live OpenAI in Phase 0; Daniel-only; Phase 0 split; MCP hosting early; evals as Daniel input; existing systems are references not migration targets.
+**Before application code:** D00 (private repo) + Phase 0A approvals (especially D06, D26, classification).
+
+**Before candidate matching:** D08 (and D09 if needed).
+
+**Not required to start Phase 1 shell:** JazzHR résumé proof, Adobe Sign live proof, full journey writeups, OpenAI live calls.
+
+---
+
+## Related
+
+- `PHASE_0_REPORT.md`
+- `QUEUE_DECISION_MEMO.md`
+- `WORKER_AUTHORIZATION.md`
+- `ACCESS_MATRIX.md`
+- `README.md` / `AGENTS.md`
