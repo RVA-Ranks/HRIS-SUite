@@ -41,3 +41,7 @@ Thumbs.db
 # Local spike artifacts (API proofs stay out of git)
 .tmp/
 .spikes/
+
+# Next.js tooling
+*.tsbuildinfo
+.vercel/
