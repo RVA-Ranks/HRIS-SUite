@@ -1,86 +1,77 @@
 # Day-1 Queue Decision Memo — Inngest vs Trigger.dev
 
-**Date:** August 5, 2026  
+**Date:** August 5, 2026 (revised same day after Code Coach review)  
 **Owner:** Carl (recommendation) / Daniel (approval)  
-**Status:** Recommended — awaiting Daniel approval  
-**Context:** Locked stack is Next.js on Vercel + Supabase. Vercel must not be the durable worker.
+**Status:** Recommended — awaiting Daniel Phase 0A approval  
+**Security companion:** `WORKER_AUTHORIZATION.md`
 
 ---
 
 ## Recommendation
 
-**Prefer Trigger.dev** for Phase 1+.
+**Prefer Trigger.dev Cloud** (or self-host later if policy requires) for Phase 1+ durable jobs.
 
-**Acceptable alternative:** Inngest, only if Daniel explicitly prefers a single Vercel deploy surface and accepts that every long sync must be designed as short, checkpointed steps from day one.
+**Acceptable alternative:** Inngest, if Daniel prefers orchestration-in-Vercel with mandatory short `step.run()` chunks and accepts [Vercel hosting duration limits](https://www.inngest.com/docs/deploy/vercel).
 
----
-
-## Job profile for this product
-
-Expected durable work (from the master roadmap):
-
-| Job | Nature | Duration risk |
-| --- | --- | --- |
-| Nightly Gmail incremental scan | Scheduled, paginated, AI extraction later | Medium–high on large days |
-| JazzHR initial / incremental sync | Paginated, rate-limited | High on first full sync |
-| Résumé parse / ZIP ingest batches | CPU + I/O heavy | High |
-| Webhook reconciliation / retries | Burst, idempotent | Low–medium |
-| Handbook distribution follow-ups | Batch, delayed | Medium |
-| Sync freshness / failed-job alerts | Scheduled | Low |
-
-Volume for Daniel-only use is low (tens to low hundreds of runs per month), but **individual runs can be long**.
+**Do not** use Vercel Cron / serverless functions as the sole durable worker.
 
 ---
 
-## Comparison (evidence-based)
+## Official primary sources
 
-| Criterion | Inngest | Trigger.dev |
-| --- | --- | --- |
-| Where code runs | In your Vercel serverless functions; Inngest orchestrates | On Trigger.dev managed workers; Vercel only enqueues |
-| Timeout exposure | Each step must stay within Vercel limits; long work must be chunked | No Vercel timeout on the job itself |
-| Durability model | Event + `step.run()` checkpoints | Task/run model with retries and observability |
-| Fits roadmap “Vercel ≠ durable worker” | Partial — durable orchestration, but execution still on Vercel | Strong — execution is off Vercel |
-| Local DX | Strong Dev Server | Strong CLI / dashboard |
-| Cost shape (Daniel-only) | Step-based; low volume stays cheap | Run-based; low volume stays cheap |
-| Supabase access | Same env/secrets as the app | Needs DB/API secrets in Trigger.dev; prefer Supabase via public API + service role, not a private-only DB path |
-| Vendor surface | Orchestration vendor | Orchestration + compute vendor |
+| Topic | Source |
+| --- | --- |
+| Trigger.dev product model (tasks, retries, no platform timeout on managed workers) | [Trigger.dev docs — Introduction](https://trigger.dev/docs/introduction) |
+| Trigger.dev log retention by plan; payload size limits | [Trigger.dev docs — Limits](https://trigger.dev/docs/limits) |
+| Trigger.dev security, SOC2/GDPR, encryption, DPA pointer | [Trigger.dev Security](https://trigger.dev/security) |
+| Trigger.dev DPA | [Trigger.dev DPA](https://trigger.dev/legal/dpa) |
+| Inngest on Vercel — functions hosted on Vercel; configure `maxDuration`; checkpointing guidance | [Inngest — Deploy on Vercel](https://www.inngest.com/docs/deploy/vercel) |
 
-Sources consulted for architecture/pricing patterns: NextBuild (Mar 2025) Inngest vs Trigger.dev on Vercel; BuildMVPFast (2026) Next.js background-jobs comparison. Exact plan prices change; re-check at account signup.
+Secondary blog comparisons were removed as decision authorities. Pricing numbers change; re-check vendor pages at signup.
 
 ---
 
-## Why Trigger.dev for HR Command Center
+## Why Trigger.dev fits this roadmap
 
-1. **Matches the roadmap boundary.** Phase 0/1 require a durable runner that owns retries, replay, and long/bulk work. Trigger.dev’s execution model does not depend on Vercel function duration.
-2. **JazzHR and résumé paths are bulk-first risks.** Full candidate pagination and résumé ingest are exactly the jobs that fail awkwardly when forced into serverless timeouts—even with steps—if chunking is incomplete.
-3. **Low run volume.** A personal HR OS does not benefit from Inngest’s high-frequency step economics as much as a public SaaS webhook farm does.
-4. **Operator visibility.** Failed syncs, dead-letter/replay, and run history map cleanly to the required admin job-run viewer (app table + Trigger.dev dashboard).
-
----
-
-## Conditions and controls if Trigger.dev is approved
-
-- All HR business logic stays in shared domain services; Trigger tasks call those services only.
-- Persist `job_runs` in Postgres (idempotency key, attempt, state, last error, next retry, source/target IDs) even though Trigger.dev also tracks runs.
-- Never put OAuth refresh tokens or JazzHR keys in client code; store in Trigger.dev secrets / Supabase vault equivalent with the same redaction rules as Vercel env.
-- Prefer calling Supabase over HTTPS (service role, RLS-aware patterns where applicable) rather than requiring a private network path.
-- Vercel Cron may *enqueue* nightly work; Trigger.dev must *execute* it.
+1. **Execution off Vercel.** Trigger.dev runs tasks on its workers so long JazzHR pagination, résumé ingest, and Gmail scans are not bound to Vercel function timeouts ([Introduction](https://trigger.dev/docs/introduction)).
+2. **Matches roadmap boundary.** Vercel remains UI + short-lived API + cron *enqueue*; the durable runner owns retries/replay.
+3. **Low run volume, higher duration risk.** Daniel-only usage is few runs/month but individual syncs can be long — the opposite of high-frequency tiny webhook farms.
 
 ---
 
-## If Daniel chooses Inngest instead
+## Why Inngest remains acceptable (with constraints)
 
-Hard requirements:
+Inngest’s official Vercel docs state functions are hosted on Vercel serverless and recommend configuring `maxDuration`, with checkpointing `maxRuntime` set below that limit ([Deploy on Vercel](https://www.inngest.com/docs/deploy/vercel)). That means:
 
-- Every sync page / message batch / résumé file is its own `step.run()`.
-- No single step may assume > Pro timeout budget.
-- CI/architecture tests assert that bulk loops are not written as one long step.
-- Document that execution still shares Vercel capacity/concurrency with the UI API.
+- Every page/batch must be its own durable step.
+- Bulk loops must never run as one long serverless invocation.
+- CI/architecture tests should forbid unchunked syncs.
 
 ---
 
-## Decision needed from Daniel
+## Security design (required with either vendor)
 
-Approve **Trigger.dev** as the Phase 1 durable job runner, or select **Inngest** with the constraints above.
+### Payload minimization
 
-Until approved, Phase 1 scaffolding should keep a provider-agnostic `jobs/` boundary and not hard-code vendor SDKs into domain modules.
+Job payloads **ordinarily contain record IDs and control metadata only** — not résumé text, email bodies, compensation data, or other sensitive content. Workers re-fetch through authorized domain services.
+
+### Worker ↔ Supabase boundary
+
+A general Supabase **service-role** key must **not** be the default worker credential. See `WORKER_AUTHORIZATION.md` for scoped RPC / restricted role / app-mediated patterns.
+
+### Retention, logging, DPA
+
+Before production:
+
+1. Review Trigger.dev [DPA](https://trigger.dev/legal/dpa) and [Security](https://trigger.dev/security) (encryption, subprocessors, deletion).  
+2. Select a plan whose [log retention](https://trigger.dev/docs/limits) matches AITHERAS policy (vendor documents Free 1 day / Hobby 7 days / Pro 30 days as of docs fetch).  
+3. Ban sensitive fields from task logs and Trigger dashboard outputs.  
+4. Document secret ownership (who rotates Trigger.dev and worker DB credentials).
+
+---
+
+## Decision needed from Daniel (Phase 0A)
+
+Approve **Trigger.dev** with the worker authorization document, or select **Inngest** with the Vercel duration constraints above.
+
+Until approved, keep `jobs/` provider-agnostic in any future scaffold.

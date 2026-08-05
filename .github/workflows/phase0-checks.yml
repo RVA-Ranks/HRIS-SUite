@@ -1,0 +1,46 @@
+name: Phase 0 checks
+
+on:
+  push:
+    branches: [main, "docs/**", "phase-*/**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  secret-scan:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  markdown-links:
+    name: Markdown link check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check Markdown links
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: >-
+            --verbose
+            --no-progress
+            --timeout 20
+            README.md
+            AGENTS.md
+            DANIEL_HRIS_MASTER_IMPLEMENTATION_ROADMAP_FOR_CARL.md
+            docs/phase-0/**/*.md
+          fail: true
+
+  # Enabled once Next.js scaffold exists in Phase 1
+  # app-quality:
+  #   name: Lint, typecheck, test, build
+  #   runs-on: ubuntu-latest
+  #   steps: ...

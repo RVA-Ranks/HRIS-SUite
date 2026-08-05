@@ -4,11 +4,11 @@
 
 **Document owner:** Daniel Alexander  
 **Primary implementation agent:** Carl (Cursor AI)  
-**Document status:** Planning baseline; implementation must not begin until Phase 0 is completed and approved  
+**Document status:** Planning baseline; Phase 1 application code requires Phase 0A approval and a private repository  
 **Last updated:** August 5, 2026  
-**Revision:** 1.3 — Greenfield baseline, locked stack, Phase 0 split, and Daniel decision response incorporated  
+**Revision:** 1.4 — Phase 0A/0B split, repo operating docs, worker security, Drive OAuth correction  
 **Primary timezone:** America/New_York  
-**Phase 0 working docs:** `docs/phase-0/PHASE_0_REPORT.md`, `docs/phase-0/DECISION_REGISTER.md`, `docs/phase-0/QUEUE_DECISION_MEMO.md`  
+**Phase 0 working docs:** `docs/phase-0/` · Agent rules: `AGENTS.md` · Overview: `README.md`  
 
 ---
 
@@ -115,7 +115,7 @@ Unless Daniel explicitly changes them during Phase 0, use these defaults.
 | Application hosting | Next.js + TypeScript deployed on Vercel; Vercel is the UI and short-lived API/webhook layer, not the durable job-execution system |
 | Database | PostgreSQL via Supabase |
 | Durable jobs | Shortlist Inngest and Trigger.dev; Carl recommends Trigger.dev in `docs/phase-0/QUEUE_DECISION_MEMO.md` pending Daniel approval. Do not use Vercel functions as the durable worker |
-| JazzHR | API-key/plan access and résumé-byte retrieval are a hard Phase 0 gate; do not promise matching UX beyond metadata until proven or an approved fallback is selected |
+| JazzHR | API-key/plan access and résumé-byte retrieval are a **Phase 0B hard gate for candidate matching**; they do **not** block Phase 1 secure-shell work after Phase 0A approval |
 | Sensitive files | Keep authoritative copies in the approved source repository; avoid uncontrolled duplication |
 | ADP | No direct write integration in the initial roadmap |
 | Job boards | Generate searches and outreach content; do not automate prohibited browsing or scraping |
@@ -427,26 +427,29 @@ Remove architectural unknowns before implementation. This phase is complete only
 
 **Repository posture:** This HR Command Center repository is greenfield. Carl must not spend Phase 0 hunting for an existing Next.js/HRIS codebase in-repo. Performance Reviews, Compensation Adjustment, compliance registers, and related Google Apps Script / Sheet / Drive / Adobe Sign workflows are external **reference implementations**. Inventory them through approved access; do not copy, migrate, or rewrite them in Phase 0. Phase 1 builds a clean Daniel-only shell with manual intake and linked records; automation is earned later through proven integrations.
 
-**Phase 0 time-box:** Split work into a **minimum gate** and optional **stretch**. Any unknown remains explicitly unknown—no guessing. Track decisions in `docs/phase-0/DECISION_REGISTER.md`.
+**Phase 0 time-box:** Split into **Phase 0A** (architecture & security) and **Phase 0B** (live integration proofs). Phase 1 secure-shell work may begin after **0A** approval and a **private** GitHub repository, while 0B remains open. Any unknown remains explicitly unknown—no guessing. Track decisions in `docs/phase-0/DECISION_REGISTER.md`. Use feature branches and pull requests; do not commit application code directly to `main`.
 
-### Minimum gate
+### Phase 0A — architecture & security (blocks Phase 1 shell)
 
 - Repo confirmation and greenfield architecture baseline
-- Systems inventory and credentials/access matrix
-- JazzHR résumé/API proof (hard gate) or approved fallback selection
-- Google OAuth / integration proof path
-- Durable queue recommendation (Inngest vs Trigger.dev) with evidence memo
+- Repository made **private** before application code
+- `README.md` / `AGENTS.md` operating instructions
+- Systems inventory posture and credentials/access matrix (names/status only)
+- Durable queue recommendation with **official vendor documentation**, payload minimization, DPA/retention notes, and worker authorization boundary (no default Supabase service-role)
 - Data-classification and privacy design
+- MCP hosting shape (implementation remains Phase 9)
+- Drive security model: OAuth scopes ≠ folder allowlists; enforce folder IDs in-app with server-side validation
 - Phase 1 vertical-slice specification
 - Decision register with owner, evidence, recommendation, blocker status, and next action
+- Automated docs checks (secret scan, markdown links); app lint/typecheck/test/build once scaffold exists
 
-### Stretch (optional before Phase 1)
+### Phase 0B — live integration proofs (do not block Phase 1 shell)
 
-- Adobe Sign live-status proof
-- Codex SDK recommendation beyond “defer until CI exists”
-- Private MCP hosting recommendation depth (hosting shape is required in minimum architecture; full tunnel runbook may be stretch)
-- Full eleven journey writeups
-- Handbook-export prototype
+- JazzHR API and résumé-byte proof (hard gate for **matching**) or approved fallback selection
+- Google OAuth / Gmail / Calendar live proofs
+- Drive folder allowlist supply + access proof
+- Deepening inventory of Review / Compensation / compliance register locations
+- Optional stretch: Adobe Sign live-status, full journey writeups, handbook-export prototype
 
 ## 8.1 Repository and deployment audit
 
@@ -562,12 +565,15 @@ Google Calendar change notifications require an HTTPS webhook and expiring notif
 
 Prove:
 
-- Listing approved folders
-- Reading metadata and downloading an approved test document
+- Listing within **Daniel-approved folder IDs** (application allowlist)
+- Reading metadata and downloading an approved test document only after **server-side allowlist validation** of the file ID
 - Creating a test document in a dedicated non-production folder
-- Access-control behavior
+- Access-control behavior of the connected account
 - Stable file IDs and version behavior
 - Whether shared-drive or My Drive semantics apply
+- Chosen OAuth scopes (prefer least privilege such as `drive.file` where viable per [Google Drive API scopes](https://developers.google.com/drive/api/guides/api-specific-auth))
+
+**Important:** OAuth scopes do **not** equal arbitrary per-folder token restrictions. Folder limitation is enforced by (1) scope choice, (2) what the connected account can access, (3) an application allowlist of folder IDs, and (4) validating every requested file ID server-side against that allowlist (or user Picker selection under `drive.file`).
 
 ### E. Adobe Acrobat Sign spike
 
@@ -2158,4 +2164,13 @@ The guiding standard is simple: **nothing external happens silently, nothing sen
 - Clarified evaluation datasets as a Daniel input dependency that does not block the manual vertical slice.
 - Fixed duplicate section numbering (former second §4.3 → §4.4; subsequent subsections renumbered).
 - Pointed working Phase 0 artifacts to `docs/phase-0/`.
+
+### Revision 1.4 — August 5, 2026
+
+- Split Phase 0 into **0A** (architecture/security) and **0B** (live integration proofs); Phase 1 shell may proceed after 0A + private repo.
+- Required private GitHub repository before application code; feature-branch/PR workflow; `README.md` and `AGENTS.md`.
+- Hardened Trigger.dev recommendation with official vendor docs, IDs-first payloads, DPA/retention notes, and non-default service-role worker boundary (`WORKER_AUTHORIZATION.md`).
+- Corrected Google Drive security language: scopes ≠ folder restrictions; enforce allowlists server-side.
+- Added `.env.example`, Phase 0 CI (gitleaks + markdown link check).
+- Clarified JazzHR résumé proof blocks matching, not the secure shell.
 
