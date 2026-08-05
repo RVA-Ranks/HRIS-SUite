@@ -6,7 +6,7 @@
 
 | ID | Track | Decision | Owner | Evidence | Recommendation | Blocker? | Next action |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| D00 | 0A | Repository visibility | Daniel | Code Coach: public HRIS repo is unsafe | Make **Private** before any application code | **Yes for app code** | Daniel sets repo private + optional branch protection |
+| D00 | 0A | Repository visibility | Daniel / Carl | Must stay private; ChatGPT/Codex app needs explicit access | Keep **Private**; do not reopen publicly for connector access | **Yes for app code** | Confirm private; grant connector access without making public |
 | D01 | 0A | Repository posture | Daniel / Carl | Greenfield; baseline `e80292f` on `main` | Treat as **greenfield**. Feature branches + PRs for future work | No | Continue docs/PRs; no direct-to-main app commits |
 | D02 | 0A | Existing systems role | Daniel | Reviews/comp are GAS + Sheets | **Reference implementations only** | No | Daniel supplies Drive/Script access for 0B inventory |
 | D03 | 0A | App hosting | Daniel | Locked | **Next.js + TypeScript on Vercel** | No | Create Vercel project only after private repo + 0A |
@@ -32,7 +32,7 @@
 | D23 | 0A/0B | Document storage | Daniel | Unknown | Drive references preferred | Soft | Decide after JazzHR path |
 | D24 | 0A | Data retention | Daniel | Proposal in report | Daniel must approve | Soft | Approve or edit proposal |
 | D25 | 0A | Phase 0 split | Daniel / Code Coach | Review | **0A vs 0B**; Phase 1 after 0A | No | Approve 0A package |
-| D26 | 0A | Worker ↔ Supabase | Carl → Daniel | `WORKER_AUTHORIZATION.md` | No default service-role; IDs-first payloads; DPA/retention review | Yes before prod jobs | Approve pattern A/B/C |
+| D26 | 0A | Worker ↔ Supabase | Carl → Daniel | `WORKER_AUTHORIZATION.md` | **Pattern C selected**: signed automation identity → internal domain API; no service-role for routine workers; A/B later optimizations | Soft — provisional 0A approve | Confirm Pattern C; audit fields include automation identity + job ID |
 
 ---
 

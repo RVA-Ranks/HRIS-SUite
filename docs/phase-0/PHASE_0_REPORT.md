@@ -39,7 +39,7 @@ Phase 0 is split:
 | Vercel project | Not connected — do not create until private repo + 0A |
 | Tests | Docs CI only |
 | Git | Remote `origin` → `https://github.com/RVA-Ranks/HRIS-SUite.git`; default branch **`main`**; baseline commit **`e80292f`** |
-| Visibility | **Must be Private** before application code (Daniel action) |
+| Visibility | **Must remain Private** before application code (re-confirmed when fixing CI; grant ChatGPT/Codex GitHub app access explicitly — do not reopen publicly) |
 | Secrets in repo | None observed; `.gitignore` + `.env.example` (names only) |
 
 **Implication:** Phase 1 creates the application from a clean scaffold on a feature branch + PR. Do not “preserve” nonexistent modules. Do not commit Phase 1 directly to `main`.
@@ -444,7 +444,7 @@ Queryable business fields are normalized columns. JSON only for controlled raw p
 | Drive OAuth vs allowlist language corrected | **Done** |
 | Phase 1 vertical-slice specification | **Done** |
 | Decision register | **Done** |
-| Docs CI (secret scan + markdown links) | **Done** |
+| Docs CI (secret scan + markdown **link** validation) | **Implemented — verification pending** (Markdownlint deferred to Phase 1 scaffold) |
 
 ### Phase 0B — live proofs (do not block Phase 1 shell)
 

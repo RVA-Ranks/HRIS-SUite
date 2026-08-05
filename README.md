@@ -101,7 +101,7 @@ See `.env.example` for variable **names** only.
 
 Application scaffold does not exist yet. After Phase 1 Next.js scaffolding lands, this section will list `install`, `dev`, `lint`, `typecheck`, `test`, and `build` commands.
 
-Current docs CI: see `.github/workflows/phase0-checks.yml`.
+Current docs CI: secret scan + Markdown **link** validation (`.github/workflows/phase0-checks.yml`). Markdownlint, dependency review, and app quality gates land with the Phase 1 scaffold.
 
 ---
 

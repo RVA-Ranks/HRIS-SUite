@@ -57,7 +57,9 @@ Job payloads **ordinarily contain record IDs and control metadata only** — not
 
 ### Worker ↔ Supabase boundary
 
-A general Supabase **service-role** key must **not** be the default worker credential. See `WORKER_AUTHORIZATION.md` for scoped RPC / restricted role / app-mediated patterns.
+**Selected default: Pattern C** — Trigger.dev workers call the HRIS internal domain API with a dedicated signed automation identity. They must **not** receive `SUPABASE_SERVICE_ROLE_KEY` by default. See `WORKER_AUTHORIZATION.md`.
+
+A general Supabase **service-role** key is exception-only (admin/migration/emergency), never for routine workers.
 
 ### Retention, logging, DPA
 

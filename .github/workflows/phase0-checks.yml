@@ -7,27 +7,28 @@ on:
 
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
   secret-scan:
     name: Secret scan (gitleaks)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
       - name: Run Gitleaks
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   markdown-links:
-    name: Markdown link check
+    name: Markdown link validation
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - name: Check Markdown links
-        uses: lycheeverse/lychee-action@v2
+        uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.9.0
         with:
           args: >-
             --verbose
@@ -39,8 +40,7 @@ jobs:
             docs/phase-0/**/*.md
           fail: true
 
-  # Enabled once Next.js scaffold exists in Phase 1
-  # app-quality:
-  #   name: Lint, typecheck, test, build
-  #   runs-on: ubuntu-latest
-  #   steps: ...
+  # Deferred to Phase 1 application scaffold (do not claim Markdownlint is covered by link checks):
+  # - Markdownlint
+  # - dependency review
+  # - lint / typecheck / unit tests / Playwright smoke / production build

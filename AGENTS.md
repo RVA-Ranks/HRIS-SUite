@@ -59,10 +59,10 @@ Example: `docs(phase-0): harden repository security and split integration gates`
 
 Before claiming a delivery complete:
 
-- [ ] Lint / markdown checks (docs workflows)
-- [ ] Secret scanning workflow green
-- [ ] Typecheck, lint, unit tests, build — **once** Next.js scaffold exists
-- [ ] No real PII/HR data in the diff
+- [ ] Lint / Markdown **link** validation (docs workflows); Markdownlint deferred to Phase 1  
+- [ ] Secret scanning workflow green  
+- [ ] Typecheck, lint, unit tests, build, dependency review — **once** Next.js scaffold exists  
+- [ ] No real PII/HR data in the diff  
 - [ ] Roadmap / decision register updated if decisions changed
 
 ---

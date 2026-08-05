@@ -1,26 +1,54 @@
 # Worker authorization boundary (Trigger.dev + Supabase)
 
-**Status:** Phase 0A security design — required before production worker credentials  
+**Status:** Phase 0A — **Pattern C selected** as preliminary default (provisionally approve with 0A)  
 **Related:** `QUEUE_DECISION_MEMO.md`
 
 ---
 
-## Principles
+## Selected default: Pattern C
 
-1. Job **payloads** ordinarily contain **record IDs**, idempotency keys, and non-sensitive control metadata — not résumé text, email bodies, compensation values, medical/benefits details, or identity-document numbers.
-2. Workers load sensitive fields **inside** authorized domain services after re-checking permissions and data classification.
-3. A broadly available Supabase **service-role** key must **not** be the default worker pattern. Service role bypasses RLS and is too powerful for routine sync jobs.
-4. Prefer one of these patterns (Daniel approves the chosen option before Phase 1 job wiring):
+**Trigger.dev workers call the HRIS internal domain API with a dedicated signed automation identity.** They do **not** impersonate Daniel. They do **not** receive `SUPABASE_SERVICE_ROLE_KEY` by default.
 
-| Pattern | Description | When |
+```text
+Vercel Cron / schedule / admin "Run now"
+        │
+        ▼
+Trigger.dev task (payload = IDs + control metadata only)
+        │  signed automation JWT / client credentials
+        ▼
+HRIS internal API (same domain services as UI)
+        │  permission + classification checks
+        ▼
+Supabase (user/session RLS or scoped service paths inside API only)
+```
+
+### Automation identity rules
+
+| Rule | Requirement |
+| --- | --- |
+| Identity | Dedicated automation principal (e.g. `automation@hris.internal` / machine client) — **not** Daniel’s user session |
+| Auth to API | Signed short-lived token or mTLS/client-credentials equivalent verified server-side |
+| Capabilities | Explicit allowlisted operations per job type (e.g. `jazzhr.sync.page`, `gmail.scan.incremental`) |
+| Audit | Every material action records: automation identity, initiating schedule or human actor, permitted capability, `job_run_id` / Trigger run ID, correlation ID |
+| Secrets in Trigger.dev | `TRIGGER_*` + automation client credentials only — **not** service-role by default |
+| Impersonation | Forbidden for scheduled jobs |
+
+### Payload minimization
+
+Job payloads ordinarily contain **record IDs**, idempotency keys, and non-sensitive control metadata — not résumé text, email bodies, compensation values, medical/benefits details, or identity-document numbers. Sensitive fields are loaded inside domain services after re-authorization.
+
+---
+
+## Alternative patterns (later optimization only)
+
+| Pattern | Description | Status |
 | --- | --- | --- |
-| **A. Scoped RPC / Edge functions** | Worker authenticates as a dedicated `worker` principal and calls narrow Postgres RPCs or Edge Functions that enforce allowlisted operations | Preferred default |
-| **B. Restricted DB role** | Dedicated Postgres role with table/column grants for job-needed rows only; no bypass of highly restricted tables | Acceptable |
-| **C. App-mediated fetch** | Worker calls the HRIS internal API with a signed worker JWT; API enforces authz identical to UI services | Acceptable; good for parity |
-| **D. Service role** | Full bypass of RLS | **Exception only**, documented, time-boxed, never for highly restricted reads by default |
+| **A. Scoped RPC / Edge functions** | Narrow Postgres RPCs for high-volume hot paths | Deferred until justified by volume/latency |
+| **B. Restricted DB role** | Dedicated Postgres role with table/column grants | Deferred alternative |
+| **C. App-mediated API** | Signed automation identity → internal domain API | **Selected default** |
+| **D. Service role** | Full RLS bypass | **Exception only** — documented, time-boxed, never default for workers or highly restricted reads |
 
-5. Highly restricted records (compensation, medical/benefits, ER, identity docs) require explicit use-case approval before any worker path can read them.
-6. Worker logs must not print sensitive payloads. Log IDs, status, duration, and non-sensitive error codes.
+`SUPABASE_SERVICE_ROLE_KEY` may exist for admin/migration/emergency tooling on the application server. It is **exception-only**, never exposed to the browser, and never issued to routine Trigger.dev workers.
 
 ---
 
@@ -35,8 +63,8 @@ Before enabling production jobs, Daniel (or AITHERAS security owner) must confir
 | Encryption | At-rest AES-256 and TLS in transit (vendor claim) | [Security](https://trigger.dev/security) |
 | Log retention | Plan-dependent (e.g. Free 1d / Hobby 7d / Pro 30d per vendor limits docs); choose plan so retention matches policy | [Limits — log retention](https://trigger.dev/docs/limits) |
 | Deletion | Document offboarding / project deletion and data-deletion request path | DPA + Security portal |
-| Payload minimization | IDs-first payloads; avoid placing Confidential/Highly restricted content in Trigger payloads or dashboard-visible outputs | This document |
-| Secrets | Trigger.dev project secrets for worker credentials; never in git | Trigger.dev env/secrets docs |
+| Payload minimization | IDs-first payloads; avoid Confidential/Highly restricted content in Trigger payloads or dashboard-visible outputs | This document |
+| Secrets | Trigger.dev project secrets for worker + automation credentials; never in git | Trigger.dev env/secrets docs |
 
 HIPAA/BAA: only relevant if PHI is processed; default HRIS design keeps medical/benefits AI and broad PHI out of workers unless separately approved.
 
@@ -45,7 +73,9 @@ HIPAA/BAA: only relevant if PHI is processed; default HRIS design keeps medical/
 ## Acceptance checks (before production worker)
 
 - [ ] Worker cannot read highly restricted rows merely by possessing a general service-role key  
+- [ ] Trigger.dev worker env does **not** include `SUPABASE_SERVICE_ROLE_KEY`  
 - [ ] Sample JazzHR/Gmail job payload contains IDs only  
 - [ ] Failed-job logs in Trigger.dev dashboard show no résumé/email body  
-- [ ] `job_runs` table records state without duplicating sensitive content  
-- [ ] Revoking worker credentials disables jobs without breaking the Vercel UI deploy  
+- [ ] `job_runs` / audit events record automation identity, initiator, capability, and job ID  
+- [ ] Scheduled jobs do not authenticate as Daniel  
+- [ ] Revoking automation credentials disables jobs without breaking the Vercel UI deploy  
