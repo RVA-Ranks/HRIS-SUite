@@ -444,7 +444,7 @@ Queryable business fields are normalized columns. JSON only for controlled raw p
 | Drive OAuth vs allowlist language corrected | **Done** |
 | Phase 1 vertical-slice specification | **Done** |
 | Decision register | **Done** |
-| Docs CI (secret scan + markdown **link** validation) | **Implemented — verification pending** (Markdownlint deferred to Phase 1 scaffold) |
+| Docs CI (secret scan + markdown **link** validation) | **Done — verified green on PR #1** (Markdownlint deferred to Phase 1 scaffold) |
 
 ### Phase 0B — live proofs (do not block Phase 1 shell)
 
