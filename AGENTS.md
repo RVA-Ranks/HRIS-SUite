@@ -33,7 +33,7 @@ JazzHR résumé retrieval is a hard gate for **candidate matching**, not for Nex
 - **No production HR data** in source, logs committed to git, tests, fixtures, screenshots in PRs, or seed files.
 - Use **fabricated** fixtures only.
 - Secrets exist only as **server-side environment variables** (and approved secret managers). Never in client bundles, commits, or agent transcripts that get pasted into issues.
-- Do not add application code until the GitHub repository is **private** (Daniel action).
+- The GitHub repository **must be private** before credentials or production use. Do not add application code until it is private (Daniel action). Carl must **not** change repository visibility.
 - No direct external sends (email, calendar publish, ATS writes, handbook distribution) without explicit human approval flows.
 - No AI-enabled material actions without Approval Center / explicit confirmation patterns from the roadmap.
 - OpenAI calls only through the central AI Gateway once provisioned; never direct SDK use from UI or ad hoc routes.

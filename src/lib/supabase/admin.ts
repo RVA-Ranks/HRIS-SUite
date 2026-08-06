@@ -1,3 +1,5 @@
+import "server-only";
+
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { getPublicEnv, getServerEnv } from "@/lib/env";
 
@@ -5,7 +7,7 @@ import { getPublicEnv, getServerEnv } from "@/lib/env";
  * Exception-only privileged Supabase client (service role).
  *
  * Authorized Phase 1 uses:
- * - OAuth bootstrap (user upsert / role assignment)
+ * - OAuth bootstrap RPC (bootstrap_oauth_user)
  * - Denied-login and login audit writes under RLS
  * - Metadata-only AI run inserts when the session client cannot write
  *

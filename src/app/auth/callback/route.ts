@@ -17,6 +17,10 @@ import { safeInternalPath } from "@/lib/urls";
  * Daniel (and other admins) must be on BOTH AUTH_ALLOWLIST_EMAILS (login) and
  * AUTH_ADMIN_EMAILS (administrator role bootstrap). Allowlisted non-admins
  * receive the read_only role.
+ *
+ * User upsert + role assignment run in a single SECURITY DEFINER RPC
+ * (bootstrap_oauth_user) via the service-role client. Login audit inserts
+ * fail closed: session is cleared and the user is sent back to login.
  */
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
@@ -70,7 +74,7 @@ export async function GET(request: Request) {
 
   if (!isEmailAllowlisted(email, allowlist)) {
     await supabase.auth.signOut();
-    await admin.from("audit_events").insert({
+    const { error: denyAuditError } = await admin.from("audit_events").insert({
       actor_type: "system",
       action_type: "access_denied",
       entity_type: "user",
@@ -79,6 +83,11 @@ export async function GET(request: Request) {
       source: "app",
       metadata: { reason: "allowlist" },
     });
+    if (denyAuditError) {
+      logger.error("auth.callback deny audit insert failed", {
+        error: denyAuditError.message,
+      });
+    }
     return NextResponse.redirect(new URL("/denied", requestUrl.origin));
   }
 
@@ -86,75 +95,50 @@ export async function GET(request: Request) {
     (data.user.user_metadata?.full_name as string | undefined) ??
     email.split("@")[0];
 
-  const { data: existingUser } = await admin
-    .from("users")
-    .select("id")
-    .eq("auth_user_id", data.user.id)
-    .maybeSingle();
-
-  let appUserId = existingUser?.id;
-
-  if (!appUserId) {
-    const { data: insertedUser, error: insertError } = await admin
-      .from("users")
-      .insert({
-        auth_user_id: data.user.id,
-        email,
-        display_name: displayName,
-        status: "active",
-        last_login_at: new Date().toISOString(),
-      })
-      .select("id")
-      .single();
-
-    if (insertError || !insertedUser) {
-      logger.error("auth.callback user upsert failed", {
-        error: insertError?.message,
-      });
-      return NextResponse.redirect(new URL("/login", requestUrl.origin));
-    }
-
-    appUserId = insertedUser.id;
-  } else {
-    await admin
-      .from("users")
-      .update({
-        last_login_at: new Date().toISOString(),
-        display_name: displayName,
-      })
-      .eq("id", appUserId);
-  }
-
   const roleKey = isEmailAllowlisted(email, adminEmails)
     ? ROLE_KEYS.ADMINISTRATOR
     : ROLE_KEYS.READ_ONLY;
 
-  const { data: role } = await admin
-    .from("roles")
-    .select("id")
-    .eq("key", roleKey)
-    .maybeSingle();
+  const { data: appUserId, error: bootstrapError } = await admin.rpc(
+    "bootstrap_oauth_user",
+    {
+      p_auth_user_id: data.user.id,
+      p_email: email,
+      p_display_name: displayName,
+      p_role_key: roleKey,
+    },
+  );
 
-  if (role) {
-    await admin.from("user_roles").upsert(
-      {
-        user_id: appUserId,
-        role_id: role.id,
-      },
-      { onConflict: "user_id,role_id" },
+  if (bootstrapError || !appUserId) {
+    logger.error("auth.callback bootstrap failed", {
+      error: bootstrapError?.message ?? "missing user id",
+    });
+    await supabase.auth.signOut();
+    return NextResponse.redirect(
+      new URL("/login?reason=bootstrap", requestUrl.origin),
     );
   }
 
-  await admin.from("audit_events").insert({
+  const { error: loginAuditError } = await admin.from("audit_events").insert({
     actor_user_id: appUserId,
     actor_type: "user",
     action_type: "login",
     entity_type: "user",
-    entity_id: appUserId,
+    entity_id: String(appUserId),
     after_summary: "Successful Google OAuth login",
     source: "app",
     metadata: { roleKey },
   });
+
+  if (loginAuditError) {
+    logger.error("auth.callback login audit insert failed", {
+      error: loginAuditError.message,
+    });
+    await supabase.auth.signOut();
+    return NextResponse.redirect(
+      new URL("/login?reason=audit", requestUrl.origin),
+    );
+  }
 
   const appUrl = getPublicEnv().NEXT_PUBLIC_APP_URL ?? requestUrl.origin;
   return NextResponse.redirect(new URL(nextPath, appUrl));

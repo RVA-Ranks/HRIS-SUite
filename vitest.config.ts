@@ -7,6 +7,7 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["src/**/*.test.ts"],
+    exclude: ["src/test/db/**", "node_modules/**"],
     env: {
       AUTH_ALLOWLIST_EMAILS: "daniel@example.com,ops@example.com",
       NEXT_PUBLIC_SUPABASE_URL: "https://example.supabase.co",
@@ -17,6 +18,7 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      "server-only": path.resolve(__dirname, "./src/test/shims/server-only.ts"),
     },
   },
 });
