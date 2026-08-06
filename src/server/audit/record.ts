@@ -1,6 +1,6 @@
 import { getCorrelationId } from "@/lib/correlation";
 import { logger } from "@/lib/logger";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClientOrNull } from "@/lib/supabase/admin";
 
 export type AuditEventInput = {
   actorUserId?: string | null;
@@ -26,10 +26,14 @@ export function setAuditRecorderForTests(recorder: AuditRecorder | null): void {
   auditRecorderOverride = recorder;
 }
 
+/**
+ * Append-only audit writes use the service-role client because operational
+ * tables deny direct INSERT from authenticated/anon under Phase 1 RLS.
+ */
 const defaultAuditRecorder: AuditRecorder = async (input) => {
-  const supabase = await createClient();
-  if (!supabase) {
-    logger.warn("audit.record skipped — database unavailable", {
+  const admin = createAdminClientOrNull();
+  if (!admin) {
+    logger.warn("audit.record skipped — service role unavailable", {
       actionType: input.actionType,
     });
     return { ok: false };
@@ -37,7 +41,7 @@ const defaultAuditRecorder: AuditRecorder = async (input) => {
 
   const correlationId = input.correlationId ?? (await getCorrelationId());
 
-  const { data, error } = await supabase
+  const { data, error } = await admin
     .from("audit_events")
     .insert({
       actor_user_id: input.actorUserId ?? null,

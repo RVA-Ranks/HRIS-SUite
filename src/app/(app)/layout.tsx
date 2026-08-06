@@ -1,8 +1,13 @@
+import { redirect } from "next/navigation";
 import { AppShell } from "@/components/shell/AppShell";
 import { ToastProvider } from "@/components/ui/Toast";
-import { getConfigurationErrorMessage, getConfigurationStatus } from "@/server/data/config-status";
-import { getSessionUser } from "@/server/auth/require-user";
 import { ErrorState } from "@/components/ui/ErrorState";
+import { createClient } from "@/lib/supabase/server";
+import {
+  getConfigurationErrorMessage,
+  getConfigurationStatus,
+} from "@/server/data/config-status";
+import { getSessionUser } from "@/server/auth/require-user";
 
 export default async function AppLayout({
   children,
@@ -10,7 +15,6 @@ export default async function AppLayout({
   children: React.ReactNode;
 }) {
   const configStatus = getConfigurationStatus();
-  const user = configStatus.ready ? await getSessionUser() : null;
 
   if (!configStatus.ready) {
     return (
@@ -23,9 +27,27 @@ export default async function AppLayout({
     );
   }
 
+  const supabase = await createClient();
+  if (!supabase) {
+    redirect("/login?reason=configuration");
+  }
+
+  const {
+    data: { user: authUser },
+  } = await supabase.auth.getUser();
+
+  if (!authUser) {
+    redirect("/login");
+  }
+
+  const user = await getSessionUser();
+  if (!user) {
+    redirect("/denied");
+  }
+
   return (
     <ToastProvider>
-      <AppShell userEmail={user?.email}>{children}</AppShell>
+      <AppShell userEmail={user.email}>{children}</AppShell>
     </ToastProvider>
   );
 }

@@ -4,6 +4,9 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { listJobRuns, type JobRunRow } from "@/server/data/jobs";
+import { PERMISSION_KEYS } from "@/server/auth/permissions";
+import { redirectForAuthError } from "@/server/auth/redirect";
+import { requirePermission } from "@/server/auth/require-user";
 
 function stateVariant(state: string): "default" | "success" | "warning" | "danger" | "muted" {
   switch (state) {
@@ -19,6 +22,12 @@ function stateVariant(state: string): "default" | "success" | "warning" | "dange
 }
 
 export default async function JobsPage() {
+  try {
+    await requirePermission(PERMISSION_KEYS.JOBS_READ);
+  } catch (error) {
+    redirectForAuthError(error);
+  }
+
   const { rows, error, disconnected } = await listJobRuns();
 
   return (

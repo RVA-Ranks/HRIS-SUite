@@ -1,5 +1,6 @@
 import { getServerEnv, isSupabaseConfigured } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
+import { isEmailAllowlisted } from "@/server/auth/allowlist";
 import {
   hasPermission,
   PERMISSION_KEYS,
@@ -24,10 +25,13 @@ export class AuthError extends Error {
   }
 }
 
-async function loadUserPermissions(userId: string): Promise<string[]> {
+/**
+ * Fail-closed permission load. Any query error → empty list (caller treats as deny).
+ */
+async function loadUserPermissions(userId: string): Promise<string[] | null> {
   const supabase = await createClient();
   if (!supabase) {
-    return [];
+    return null;
   }
 
   const { data: userRoles, error: userRolesError } = await supabase
@@ -35,7 +39,11 @@ async function loadUserPermissions(userId: string): Promise<string[]> {
     .select("role_id")
     .eq("user_id", userId);
 
-  if (userRolesError || !userRoles?.length) {
+  if (userRolesError) {
+    return null;
+  }
+
+  if (!userRoles?.length) {
     return [];
   }
 
@@ -46,7 +54,11 @@ async function loadUserPermissions(userId: string): Promise<string[]> {
     .select("permissions(key)")
     .in("role_id", roleIds);
 
-  if (rolePermissionsError || !rolePermissions) {
+  if (rolePermissionsError) {
+    return null;
+  }
+
+  if (!rolePermissions) {
     return [];
   }
 
@@ -61,6 +73,11 @@ async function loadUserPermissions(userId: string): Promise<string[]> {
   return Array.from(permissions);
 }
 
+/**
+ * Fail-closed session resolution.
+ * Missing profile, query errors, empty permissions, or missing app.access → null.
+ * No APP_ACCESS fallback for users without a DB profile.
+ */
 export async function getSessionUser(): Promise<SessionUser | null> {
   if (!isSupabaseConfigured()) {
     return null;
@@ -79,21 +96,39 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     return null;
   }
 
-  const { data: profile } = await supabase
+  const allowlist = getServerEnv().authAllowlistEmails;
+  if (!isEmailAllowlisted(user.email, allowlist)) {
+    return null;
+  }
+
+  const { data: profile, error: profileError } = await supabase
     .from("users")
-    .select("id, display_name")
+    .select("id, display_name, status")
     .eq("auth_user_id", user.id)
+    .eq("status", "active")
     .maybeSingle();
 
-  const permissions = profile?.id
-    ? await loadUserPermissions(profile.id)
-    : [PERMISSION_KEYS.APP_ACCESS];
+  if (profileError || !profile?.id) {
+    return null;
+  }
+
+  const permissions = await loadUserPermissions(profile.id);
+  if (permissions === null) {
+    return null;
+  }
+
+  if (
+    permissions.length === 0 ||
+    !permissions.includes(PERMISSION_KEYS.APP_ACCESS)
+  ) {
+    return null;
+  }
 
   return {
-    id: profile?.id ?? user.id,
+    id: profile.id,
     authUserId: user.id,
     email: user.email,
-    displayName: profile?.display_name ?? user.user_metadata?.full_name ?? null,
+    displayName: profile.display_name ?? user.user_metadata?.full_name ?? null,
     permissions,
   };
 }
@@ -118,6 +153,22 @@ export async function requirePermission(
   return user;
 }
 
+export async function requireAnyPermission(
+  permissionKeys: PermissionKey[],
+): Promise<SessionUser> {
+  const user = await requireUser();
+
+  if (!permissionKeys.some((key) => hasPermission(user.permissions, key))) {
+    throw new AuthError("Permission denied.", "forbidden");
+  }
+
+  return user;
+}
+
 export function getConfiguredAllowlist(): string[] {
   return getServerEnv().authAllowlistEmails;
+}
+
+export function getConfiguredAdminEmails(): string[] {
+  return getServerEnv().authAdminEmails;
 }

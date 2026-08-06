@@ -13,19 +13,29 @@ export function redactSensitiveText(value: string): string {
   return redacted;
 }
 
+function redactValue(value: unknown): unknown {
+  if (typeof value === "string") {
+    return redactSensitiveText(value);
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((entry) => redactValue(entry));
+  }
+
+  if (value && typeof value === "object") {
+    return redactInput(value as Record<string, unknown>);
+  }
+
+  return value;
+}
+
 export function redactInput(
   input: Record<string, unknown>,
 ): Record<string, unknown> {
   const result: Record<string, unknown> = {};
 
   for (const [key, value] of Object.entries(input)) {
-    if (typeof value === "string") {
-      result[key] = redactSensitiveText(value);
-    } else if (value && typeof value === "object" && !Array.isArray(value)) {
-      result[key] = redactInput(value as Record<string, unknown>);
-    } else {
-      result[key] = value;
-    }
+    result[key] = redactValue(value);
   }
 
   return result;

@@ -7,6 +7,9 @@ import {
   listIntegrationConnections,
   type IntegrationConnectionRow,
 } from "@/server/data/integrations";
+import { PERMISSION_KEYS } from "@/server/auth/permissions";
+import { redirectForAuthError } from "@/server/auth/redirect";
+import { requirePermission } from "@/server/auth/require-user";
 
 function statusVariant(
   status: string,
@@ -24,6 +27,12 @@ function statusVariant(
 }
 
 export default async function IntegrationsPage() {
+  try {
+    await requirePermission(PERMISSION_KEYS.INTEGRATIONS_READ);
+  } catch (error) {
+    redirectForAuthError(error);
+  }
+
   const { rows, error, fromSeed } = await listIntegrationConnections();
 
   return (

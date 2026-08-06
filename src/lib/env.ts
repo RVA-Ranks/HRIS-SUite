@@ -9,7 +9,7 @@ function parseBoolean(value: string | undefined, defaultValue: boolean): boolean
   return truthy.has(value.trim().toLowerCase());
 }
 
-function parseAllowlist(value: string | undefined): string[] {
+function parseEmailList(value: string | undefined): string[] {
   if (!value || value.trim() === "") {
     return [];
   }
@@ -27,6 +27,7 @@ const publicEnvSchema = z.object({
 
 const serverEnvSchema = z.object({
   AUTH_ALLOWLIST_EMAILS: z.string().optional(),
+  AUTH_ADMIN_EMAILS: z.string().optional(),
   OPENAI_API_KEY: z.string().min(1).optional(),
   OPENAI_PROJECT_ID: z.string().optional(),
   AI_GLOBAL_KILL_SWITCH: z.string().optional(),
@@ -35,7 +36,10 @@ const serverEnvSchema = z.object({
 
 export type PublicEnv = z.infer<typeof publicEnvSchema>;
 export type ServerEnv = {
+  /** Login eligibility — who may complete OAuth into the app. */
   authAllowlistEmails: string[];
+  /** Initial administrator bootstrap only — must also be on the allowlist. */
+  authAdminEmails: string[];
   openaiApiKey?: string;
   openaiProjectId?: string;
   aiGlobalKillSwitch: boolean;
@@ -68,6 +72,7 @@ export function getServerEnv(): ServerEnv {
 
   serverEnvSchema.parse({
     AUTH_ALLOWLIST_EMAILS: process.env.AUTH_ALLOWLIST_EMAILS,
+    AUTH_ADMIN_EMAILS: process.env.AUTH_ADMIN_EMAILS,
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
     OPENAI_PROJECT_ID: process.env.OPENAI_PROJECT_ID,
     AI_GLOBAL_KILL_SWITCH: process.env.AI_GLOBAL_KILL_SWITCH,
@@ -75,7 +80,8 @@ export function getServerEnv(): ServerEnv {
   });
 
   cachedServerEnv = {
-    authAllowlistEmails: parseAllowlist(process.env.AUTH_ALLOWLIST_EMAILS),
+    authAllowlistEmails: parseEmailList(process.env.AUTH_ALLOWLIST_EMAILS),
+    authAdminEmails: parseEmailList(process.env.AUTH_ADMIN_EMAILS),
     openaiApiKey: process.env.OPENAI_API_KEY,
     openaiProjectId: process.env.OPENAI_PROJECT_ID,
     aiGlobalKillSwitch: parseBoolean(process.env.AI_GLOBAL_KILL_SWITCH, true),
@@ -105,6 +111,7 @@ export function requireRuntimeAuthEnv(): {
   supabaseUrl: string;
   supabaseAnonKey: string;
   authAllowlistEmails: string[];
+  authAdminEmails: string[];
 } {
   const publicEnv = getPublicEnv();
   const serverEnv = getServerEnv();
@@ -121,6 +128,7 @@ export function requireRuntimeAuthEnv(): {
     supabaseUrl: publicEnv.NEXT_PUBLIC_SUPABASE_URL,
     supabaseAnonKey: publicEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     authAllowlistEmails: serverEnv.authAllowlistEmails,
+    authAdminEmails: serverEnv.authAdminEmails,
   };
 }
 

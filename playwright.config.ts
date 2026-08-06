@@ -24,6 +24,7 @@ export default defineConfig({
     timeout: 120_000,
     env: {
       AUTH_ALLOWLIST_EMAILS: "test@example.com",
+      AUTH_ADMIN_EMAILS: "test@example.com",
       NEXT_PUBLIC_SUPABASE_URL: "https://example.supabase.co",
       NEXT_PUBLIC_SUPABASE_ANON_KEY: "test-anon-key",
       AI_GLOBAL_KILL_SWITCH: "true",

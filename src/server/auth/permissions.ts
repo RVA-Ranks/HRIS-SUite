@@ -13,6 +13,7 @@ export const PERMISSION_KEYS = {
   AUDIT_READ: "audit.read",
   JOBS_READ: "jobs.read",
   INTEGRATIONS_READ: "integrations.read",
+  SETTINGS_READ: "settings.read",
   SETTINGS_WRITE: "settings.write",
   AI_USE: "ai.use",
 } as const;

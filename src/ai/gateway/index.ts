@@ -1,11 +1,13 @@
 import { getCorrelationId } from "@/lib/correlation";
 import { getPublicEnv, getServerEnv } from "@/lib/env";
 import { logger } from "@/lib/logger";
+import { createAdminClientOrNull } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { redactInput } from "@/ai/gateway/redaction";
 import type {
   AiGatewayInput,
   AiGatewayResult,
+  AiRunStatus,
   FeatureFlagReader,
   ProviderAdapter,
   ProviderRequest,
@@ -56,10 +58,64 @@ async function defaultFeatureFlagReader(key: string): Promise<boolean> {
   return Boolean(data?.enabled);
 }
 
+type AiRunMetadata = {
+  useCase: string;
+  status: AiRunStatus | "failed";
+  modelId?: string | null;
+  promptVersion?: string;
+  schemaVersion?: string;
+  classification?: string;
+  storeFlag: boolean;
+  usage?: Record<string, unknown>;
+  correlationId: string;
+  disposition?: string;
+  errorCode?: string | null;
+};
+
 type RunAiGatewayOptions = {
   provider?: ProviderAdapter;
   featureFlagReader?: FeatureFlagReader;
+  /** Test seam: override metadata audit persistence. */
+  recordAiRun?: (row: AiRunMetadata) => Promise<void>;
 };
+
+/**
+ * Always attempt a metadata-only ai_runs insert — never store raw sensitive input.
+ * Uses the service-role client when present; otherwise logs a warning and skips.
+ */
+async function persistAiRunMetadata(row: AiRunMetadata): Promise<void> {
+  const admin = createAdminClientOrNull();
+  if (!admin) {
+    logger.warn("ai_runs metadata write skipped — service role unavailable", {
+      useCase: row.useCase,
+      status: row.status,
+      correlationId: row.correlationId,
+    });
+    return;
+  }
+
+  const { error } = await admin.from("ai_runs").insert({
+    use_case: row.useCase,
+    status: row.status === "failed" ? "error" : row.status,
+    model_id: row.modelId ?? null,
+    prompt_version: row.promptVersion ?? null,
+    schema_version: row.schemaVersion ?? null,
+    classification: row.classification ?? null,
+    store_flag: row.storeFlag,
+    usage: row.usage ?? {},
+    correlation_id: row.correlationId,
+    disposition: row.disposition ?? null,
+    error_code: row.errorCode ?? null,
+  });
+
+  if (error) {
+    logger.error("ai_runs metadata write failed", {
+      useCase: row.useCase,
+      correlationId: row.correlationId,
+      error: error.message,
+    });
+  }
+}
 
 export async function runAiGateway<T = unknown>(
   input: AiGatewayInput,
@@ -69,16 +125,33 @@ export async function runAiGateway<T = unknown>(
   const serverEnv = getServerEnv();
   const featureFlagReader =
     options.featureFlagReader ?? defaultFeatureFlagReader;
+  const recordAiRun = options.recordAiRun ?? persistAiRunMetadata;
 
   const aiGlobalEnabled = await featureFlagReader("ai.global.enabled");
   const storeFlag =
     input.store ?? (input.classification === "sensitive" ? false : true);
 
-  const unavailable = (): AiGatewayResult<T> => ({
-    status: "unavailable",
-    fallback: "manual",
+  const baseMeta = {
+    useCase: input.useCase,
+    promptVersion: input.promptVersion,
+    schemaVersion: input.schemaVersion,
+    classification: input.classification,
+    storeFlag,
     correlationId,
-  });
+  };
+
+  const unavailable = async (): Promise<AiGatewayResult<T>> => {
+    await recordAiRun({
+      ...baseMeta,
+      status: "unavailable",
+      disposition: "blocked",
+    });
+    return {
+      status: "unavailable",
+      fallback: "manual",
+      correlationId,
+    };
+  };
 
   if (serverEnv.aiGlobalKillSwitch) {
     logger.info("AI Gateway blocked by kill switch", {
@@ -92,6 +165,11 @@ export async function runAiGateway<T = unknown>(
     logger.info("AI Gateway blocked by feature flag", {
       useCase: input.useCase,
       correlationId,
+    });
+    await recordAiRun({
+      ...baseMeta,
+      status: "disabled",
+      disposition: "blocked",
     });
     return { status: "disabled", fallback: "manual", correlationId };
   }
@@ -110,6 +188,7 @@ export async function runAiGateway<T = unknown>(
     return unavailable();
   }
 
+  // Redact for provider call only — never persist raw input to ai_runs.
   const sanitizedInput = redactInput(input.input);
 
   try {
@@ -122,21 +201,13 @@ export async function runAiGateway<T = unknown>(
       correlationId,
     });
 
-    const supabase = await createClient();
-    if (supabase && storeFlag) {
-      await supabase.from("ai_runs").insert({
-        use_case: input.useCase,
-        status: "success",
-        model_id: response.modelId,
-        prompt_version: input.promptVersion,
-        schema_version: input.schemaVersion,
-        classification: input.classification,
-        store_flag: storeFlag,
-        usage: response.usage ?? {},
-        correlation_id: correlationId,
-        disposition: "completed",
-      });
-    }
+    await recordAiRun({
+      ...baseMeta,
+      status: "success",
+      modelId: response.modelId,
+      usage: response.usage ?? {},
+      disposition: "completed",
+    });
 
     return {
       status: "success",
@@ -149,6 +220,13 @@ export async function runAiGateway<T = unknown>(
       useCase: input.useCase,
       correlationId,
       error: message,
+    });
+
+    await recordAiRun({
+      ...baseMeta,
+      status: "failed",
+      disposition: "error",
+      errorCode: "provider_error",
     });
 
     return {

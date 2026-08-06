@@ -4,8 +4,17 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { listAuditEvents, type AuditEventRow } from "@/server/data/audit";
+import { PERMISSION_KEYS } from "@/server/auth/permissions";
+import { redirectForAuthError } from "@/server/auth/redirect";
+import { requirePermission } from "@/server/auth/require-user";
 
 export default async function AuditPage() {
+  try {
+    await requirePermission(PERMISSION_KEYS.AUDIT_READ);
+  } catch (error) {
+    redirectForAuthError(error);
+  }
+
   const { rows, error } = await listAuditEvents();
 
   return (

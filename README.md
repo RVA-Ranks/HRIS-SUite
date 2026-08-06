@@ -52,7 +52,7 @@ docs/phase-1/                                           # Phase 1 start report
 
 ## Security and data-handling rules
 
-1. **Make this repository private** before any application code, integration artifacts, screenshots of real data, or fixtures derived from real HR content are added.
+1. **Prefer a private repository** before any application code, integration artifacts, screenshots of real data, or fixtures derived from real HR content are added. Visibility changes are **Daniel-only** — Carl must not toggle GitHub public/private.
 2. **No secrets in git** — use server-side environment variables only. Never commit `.env`, API keys, OAuth tokens, or credential JSON.
 3. **No production HR data** in source, tests, fixtures, logs committed to the repo, or PR descriptions. Use fabricated data only.
 4. `.gitignore` is necessary but not sufficient — treat every commit as potentially reviewable.
@@ -102,11 +102,13 @@ npm run dev          # local dev server
 npm run lint
 npm run typecheck
 npm run test         # Vitest unit tests
-npm run test:e2e     # Playwright smoke (requires build)
 npm run build
+npm run test:e2e     # Playwright smoke — CI builds first, then installs Chromium and runs e2e
 ```
 
-CI (`.github/workflows/phase1-app.yml`): secret scan, Markdown link validation, lint, typecheck, unit tests, production build, and dependency review on pull requests. Markdownlint remains deferred.
+Auth: set `AUTH_ALLOWLIST_EMAILS` (who may sign in) and `AUTH_ADMIN_EMAILS` (administrator bootstrap). Daniel must be on both for admin access.
+
+CI (`.github/workflows/phase1-app.yml`): secret scan, Markdown link validation, lint, typecheck, unit tests, `npm audit`, production build, then Playwright. Markdownlint remains deferred.
 
 ---
 

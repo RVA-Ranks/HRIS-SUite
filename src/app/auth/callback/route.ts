@@ -1,16 +1,27 @@
 import { NextResponse } from "next/server";
 import { isEmailAllowlisted } from "@/server/auth/allowlist";
 import { ROLE_KEYS } from "@/server/auth/permissions";
-import { getConfiguredAllowlist } from "@/server/auth/require-user";
-import { recordAuditEvent } from "@/server/audit/record";
+import {
+  getConfiguredAdminEmails,
+  getConfiguredAllowlist,
+} from "@/server/auth/require-user";
 import { getPublicEnv, requireRuntimeAuthEnv } from "@/lib/env";
 import { logger } from "@/lib/logger";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { safeInternalPath } from "@/lib/urls";
 
+/**
+ * OAuth callback.
+ *
+ * Daniel (and other admins) must be on BOTH AUTH_ALLOWLIST_EMAILS (login) and
+ * AUTH_ADMIN_EMAILS (administrator role bootstrap). Allowlisted non-admins
+ * receive the read_only role.
+ */
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
-  const nextPath = requestUrl.searchParams.get("next") ?? "/";
+  const nextPath = safeInternalPath(requestUrl.searchParams.get("next"));
 
   if (!code) {
     return NextResponse.redirect(new URL("/login", requestUrl.origin));
@@ -34,6 +45,18 @@ export async function GET(request: Request) {
     );
   }
 
+  let admin;
+  try {
+    admin = createAdminClient();
+  } catch (error) {
+    logger.error("auth.callback admin client unavailable", {
+      error: error instanceof Error ? error.message : "unknown",
+    });
+    return NextResponse.redirect(
+      new URL("/login?reason=configuration", requestUrl.origin),
+    );
+  }
+
   const { data, error } = await supabase.auth.exchangeCodeForSession(code);
 
   if (error || !data.user?.email) {
@@ -43,14 +66,17 @@ export async function GET(request: Request) {
 
   const email = data.user.email;
   const allowlist = getConfiguredAllowlist();
+  const adminEmails = getConfiguredAdminEmails();
 
   if (!isEmailAllowlisted(email, allowlist)) {
     await supabase.auth.signOut();
-    await recordAuditEvent({
-      actionType: "access_denied",
-      entityType: "user",
-      entityId: email,
-      afterSummary: "Email not on AUTH_ALLOWLIST_EMAILS",
+    await admin.from("audit_events").insert({
+      actor_type: "system",
+      action_type: "access_denied",
+      entity_type: "user",
+      entity_id: email,
+      after_summary: "Email not on AUTH_ALLOWLIST_EMAILS",
+      source: "app",
       metadata: { reason: "allowlist" },
     });
     return NextResponse.redirect(new URL("/denied", requestUrl.origin));
@@ -60,7 +86,7 @@ export async function GET(request: Request) {
     (data.user.user_metadata?.full_name as string | undefined) ??
     email.split("@")[0];
 
-  const { data: existingUser } = await supabase
+  const { data: existingUser } = await admin
     .from("users")
     .select("id")
     .eq("auth_user_id", data.user.id)
@@ -69,7 +95,7 @@ export async function GET(request: Request) {
   let appUserId = existingUser?.id;
 
   if (!appUserId) {
-    const { data: insertedUser, error: insertError } = await supabase
+    const { data: insertedUser, error: insertError } = await admin
       .from("users")
       .insert({
         auth_user_id: data.user.id,
@@ -90,7 +116,7 @@ export async function GET(request: Request) {
 
     appUserId = insertedUser.id;
   } else {
-    await supabase
+    await admin
       .from("users")
       .update({
         last_login_at: new Date().toISOString(),
@@ -99,28 +125,35 @@ export async function GET(request: Request) {
       .eq("id", appUserId);
   }
 
-  const { data: adminRole } = await supabase
+  const roleKey = isEmailAllowlisted(email, adminEmails)
+    ? ROLE_KEYS.ADMINISTRATOR
+    : ROLE_KEYS.READ_ONLY;
+
+  const { data: role } = await admin
     .from("roles")
     .select("id")
-    .eq("key", ROLE_KEYS.ADMINISTRATOR)
+    .eq("key", roleKey)
     .maybeSingle();
 
-  if (adminRole) {
-    await supabase.from("user_roles").upsert(
+  if (role) {
+    await admin.from("user_roles").upsert(
       {
         user_id: appUserId,
-        role_id: adminRole.id,
+        role_id: role.id,
       },
       { onConflict: "user_id,role_id" },
     );
   }
 
-  await recordAuditEvent({
-    actorUserId: appUserId,
-    actionType: "login",
-    entityType: "user",
-    entityId: appUserId,
-    afterSummary: "Successful Google OAuth login",
+  await admin.from("audit_events").insert({
+    actor_user_id: appUserId,
+    actor_type: "user",
+    action_type: "login",
+    entity_type: "user",
+    entity_id: appUserId,
+    after_summary: "Successful Google OAuth login",
+    source: "app",
+    metadata: { roleKey },
   });
 
   const appUrl = getPublicEnv().NEXT_PUBLIC_APP_URL ?? requestUrl.origin;

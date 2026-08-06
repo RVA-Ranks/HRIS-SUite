@@ -2,8 +2,17 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 import { getEnvStatus } from "@/lib/env";
+import { PERMISSION_KEYS } from "@/server/auth/permissions";
+import { redirectForAuthError } from "@/server/auth/redirect";
+import { requirePermission } from "@/server/auth/require-user";
 
-export default function CommandCenterPage() {
+export default async function CommandCenterPage() {
+  try {
+    await requirePermission(PERMISSION_KEYS.APP_ACCESS);
+  } catch (error) {
+    redirectForAuthError(error);
+  }
+
   const envStatus = getEnvStatus();
 
   return (

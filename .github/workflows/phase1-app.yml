@@ -44,31 +44,25 @@ jobs:
   # Markdownlint deferred — link validation + app quality gates cover Phase 1 CI scope.
 
   quality:
-    name: Lint, typecheck, test, build
+    name: Lint, typecheck, test, build, e2e
     runs-on: ubuntu-latest
     env:
       AUTH_ALLOWLIST_EMAILS: daniel@example.com
+      AUTH_ADMIN_EMAILS: daniel@example.com
       NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
       NEXT_PUBLIC_SUPABASE_ANON_KEY: fabricatd-anon-key-for-ci-only
       AI_GLOBAL_KILL_SWITCH: "true"
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - uses: actions/setup-node@39370e3970a899d662cb9439b87452093a3e2e6e # v4.1.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "20"
           cache: npm
       - run: npm ci
+      - run: npm audit --audit-level=high
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run test
       - run: npm run build
-
-  dependency-review:
-    name: Dependency review
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - uses: actions/dependency-review-action@3b139cfc5fae8b618d3eae3675e383bb1769c019 # v4.5.0
-        with:
-          fail-on-severity: high
+      - run: npx playwright install --with-deps chromium
+      - run: npx playwright test
