@@ -1,5 +1,11 @@
 -- Phase 1: Restrict bootstrap_oauth_user execute to service_role only.
 -- Explicitly revoke from PUBLIC, anon, and authenticated (Supabase default grants).
+--
+-- Intentional defense-in-depth / upgrade safeguard:
+-- Migration 20260805220000 already revokes PUBLIC and grants service_role only.
+-- This follow-up re-applies REVOKE against anon and authenticated for databases that
+-- may already have applied 20260805220000 under Supabase default privileges that
+-- re-granted EXECUTE to those roles. Safe to re-run; idempotent with respect to intent.
 
 REVOKE ALL ON FUNCTION public.bootstrap_oauth_user(uuid, text, text, text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.bootstrap_oauth_user(uuid, text, text, text) FROM anon;

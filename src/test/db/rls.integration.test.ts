@@ -341,6 +341,215 @@ describeDb("Phase 1 RLS integration", () => {
     expect(data).toBeNull();
     expect(error).not.toBeNull();
   });
+
+  it("unknown authenticated identity receives no operational data", async () => {
+    const unknownAuthId = randomUUID();
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(`SELECT set_config('request.jwt.claim.sub', $1, true)`, [
+        unknownAuthId,
+      ]);
+      await client.query(
+        `SELECT set_config('request.jwt.claim.role', 'authenticated', true)`,
+      );
+      await client.query("SET LOCAL ROLE authenticated");
+
+      const appUser = await client.query(
+        `SELECT public.current_app_user_id() AS id`,
+      );
+      expect(appUser.rows[0].id).toBeNull();
+
+      const hasAccess = await client.query(
+        `SELECT public.has_permission('app.access') AS allowed`,
+      );
+      expect(hasAccess.rows[0].allowed).toBe(false);
+
+      for (const table of [
+        "users",
+        "audit_events",
+        "job_runs",
+        "app_settings",
+        "integration_connections",
+      ] as const) {
+        const result = await client.query(
+          `SELECT count(*)::int AS n FROM public.${table}`,
+        );
+        expect(result.rows[0].n).toBe(0);
+      }
+
+      await client.query("ROLLBACK");
+    } finally {
+      client.release();
+    }
+  });
+
+  async function expectMutationDenied(
+    authId: string,
+    run: (client: pg.PoolClient) => Promise<void>,
+  ) {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(`SELECT set_config('request.jwt.claim.sub', $1, true)`, [
+        authId,
+      ]);
+      await client.query(
+        `SELECT set_config('request.jwt.claim.role', 'authenticated', true)`,
+      );
+      await client.query("SET LOCAL ROLE authenticated");
+      await run(client);
+      await client.query("ROLLBACK");
+    } finally {
+      client.release();
+    }
+  }
+
+  it("read_only cannot INSERT, UPDATE, or DELETE protected tables", async () => {
+    await expectMutationDenied(readOnlyAuthId, async (client) => {
+      await expect(
+        client.query(
+          `INSERT INTO public.users (email, status) VALUES ($1, 'active')`,
+          [`ro-insert-${randomUUID()}@example.test`],
+        ),
+      ).rejects.toThrow(/permission denied|policy/i);
+
+      await expect(
+        client.query(
+          `UPDATE public.users SET display_name = 'hacked' WHERE id = $1`,
+          [readOnlyUserId],
+        ),
+      ).rejects.toThrow(/permission denied|policy/i);
+
+      await expect(
+        client.query(`DELETE FROM public.users WHERE id = $1`, [readOnlyUserId]),
+      ).rejects.toThrow(/permission denied|policy/i);
+
+      await expect(
+        client.query(
+          `INSERT INTO public.audit_events (action_type, entity_type, source)
+           VALUES ('test', 'user', 'test')`,
+        ),
+      ).rejects.toThrow(/permission denied|policy/i);
+
+      await expect(
+        client.query(
+          `UPDATE public.audit_events SET after_summary = 'x' WHERE true`,
+        ),
+      ).rejects.toThrow(/permission denied|policy/i);
+
+      await expect(
+        client.query(`DELETE FROM public.audit_events WHERE true`),
+      ).rejects.toThrow(/permission denied|policy/i);
+
+      await expect(
+        client.query(
+          `INSERT INTO public.job_runs (job_key, idempotency_key, state)
+           VALUES ('x', $1, 'pending')`,
+          [`ro-${randomUUID()}`],
+        ),
+      ).rejects.toThrow(/permission denied|policy/i);
+
+      await expect(
+        client.query(`UPDATE public.job_runs SET state = 'failed' WHERE true`),
+      ).rejects.toThrow(/permission denied|policy/i);
+
+      await expect(
+        client.query(`DELETE FROM public.job_runs WHERE true`),
+      ).rejects.toThrow(/permission denied|policy/i);
+
+      await expect(
+        client.query(
+          `INSERT INTO public.app_settings (key, value) VALUES ($1, '{}'::jsonb)`,
+          [`ro-setting-${randomUUID()}`],
+        ),
+      ).rejects.toThrow(/permission denied|policy/i);
+
+      await expect(
+        client.query(
+          `UPDATE public.app_settings SET value = '{"x":1}'::jsonb WHERE true`,
+        ),
+      ).rejects.toThrow(/permission denied|policy/i);
+
+      await expect(
+        client.query(`DELETE FROM public.app_settings WHERE true`),
+      ).rejects.toThrow(/permission denied|policy/i);
+    });
+  });
+
+  it("administrator browser client cannot directly mutate protected tables", async () => {
+    // Even administrators must use privileged server paths for writes;
+    // RLS provides no INSERT/UPDATE/DELETE policies for authenticated.
+    await expectMutationDenied(adminAuthId, async (client) => {
+      await expect(
+        client.query(
+          `INSERT INTO public.users (email, status) VALUES ($1, 'active')`,
+          [`admin-insert-${randomUUID()}@example.test`],
+        ),
+      ).rejects.toThrow(/permission denied|policy/i);
+
+      await expect(
+        client.query(
+          `UPDATE public.users SET display_name = 'browser-write' WHERE id = $1`,
+          [adminUserId],
+        ),
+      ).rejects.toThrow(/permission denied|policy/i);
+
+      await expect(
+        client.query(`DELETE FROM public.users WHERE id = $1`, [readOnlyUserId]),
+      ).rejects.toThrow(/permission denied|policy/i);
+
+      await expect(
+        client.query(
+          `INSERT INTO public.audit_events (action_type, entity_type, source)
+           VALUES ('browser', 'user', 'test')`,
+        ),
+      ).rejects.toThrow(/permission denied|policy/i);
+
+      await expect(
+        client.query(
+          `UPDATE public.audit_events SET after_summary = 'browser' WHERE true`,
+        ),
+      ).rejects.toThrow(/permission denied|policy/i);
+
+      await expect(
+        client.query(`DELETE FROM public.audit_events WHERE true`),
+      ).rejects.toThrow(/permission denied|policy/i);
+
+      await expect(
+        client.query(
+          `INSERT INTO public.job_runs (job_key, idempotency_key, state)
+           VALUES ('browser', $1, 'pending')`,
+          [`admin-${randomUUID()}`],
+        ),
+      ).rejects.toThrow(/permission denied|policy/i);
+
+      await expect(
+        client.query(`UPDATE public.job_runs SET state = 'cancelled' WHERE true`),
+      ).rejects.toThrow(/permission denied|policy/i);
+
+      await expect(
+        client.query(`DELETE FROM public.job_runs WHERE true`),
+      ).rejects.toThrow(/permission denied|policy/i);
+
+      await expect(
+        client.query(
+          `INSERT INTO public.app_settings (key, value) VALUES ($1, '{}'::jsonb)`,
+          [`admin-setting-${randomUUID()}`],
+        ),
+      ).rejects.toThrow(/permission denied|policy/i);
+
+      await expect(
+        client.query(
+          `UPDATE public.app_settings SET value = '{"browser":true}'::jsonb WHERE true`,
+        ),
+      ).rejects.toThrow(/permission denied|policy/i);
+
+      await expect(
+        client.query(`DELETE FROM public.app_settings WHERE true`),
+      ).rejects.toThrow(/permission denied|policy/i);
+    });
+  });
 });
 
 describe("Phase 1 RLS integration gate", () => {
