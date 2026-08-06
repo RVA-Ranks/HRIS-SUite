@@ -405,21 +405,24 @@ describeDb("Phase 1 RLS integration", () => {
     }
   }
 
-  async function expectMutationDenied(
+  /**
+   * INSERT without a write policy raises; UPDATE/DELETE with no qualifying rows
+   * under deny-all RLS typically succeed with rowCount 0 (Postgres RLS semantics).
+   */
+  async function expectInsertDenied(
     client: pg.PoolClient,
     sql: string,
     params: unknown[] = [],
   ) {
-    // Use a savepoint so one denied statement does not abort the outer txn (25P02).
     await client.query("SAVEPOINT mut_attempt");
     try {
       await client.query(sql, params);
       await client.query("ROLLBACK TO SAVEPOINT mut_attempt");
-      throw new Error(`expected mutation to be denied: ${sql}`);
+      throw new Error(`expected INSERT to be denied: ${sql}`);
     } catch (error) {
       await client.query("ROLLBACK TO SAVEPOINT mut_attempt");
       const message = error instanceof Error ? error.message : String(error);
-      if (message.startsWith("expected mutation to be denied:")) {
+      if (message.startsWith("expected INSERT to be denied:")) {
         throw error;
       }
       expect(message).toMatch(
@@ -428,71 +431,91 @@ describeDb("Phase 1 RLS integration", () => {
     }
   }
 
+  async function expectUpdateOrDeleteBlocked(
+    client: pg.PoolClient,
+    sql: string,
+    params: unknown[] = [],
+  ) {
+    await client.query("SAVEPOINT mut_attempt");
+    try {
+      const result = await client.query(sql, params);
+      await client.query("ROLLBACK TO SAVEPOINT mut_attempt");
+      // Deny-all RLS: statement may "succeed" with zero rows affected.
+      expect(result.rowCount ?? 0).toBe(0);
+    } catch (error) {
+      await client.query("ROLLBACK TO SAVEPOINT mut_attempt");
+      const message = error instanceof Error ? error.message : String(error);
+      expect(message).toMatch(
+        /permission denied|policy|row-level security|violates row-level security/i,
+      );
+    }
+  }
+
   it("read_only cannot INSERT, UPDATE, or DELETE protected tables", async () => {
     await asAuthenticated(readOnlyAuthId, async (client) => {
-      await expectMutationDenied(
+      await expectInsertDenied(
         client,
         `INSERT INTO public.users (email, status) VALUES ($1, 'active')`,
         [`ro-insert-${randomUUID()}@example.test`],
       );
 
-      await expectMutationDenied(
+      await expectUpdateOrDeleteBlocked(
         client,
         `UPDATE public.users SET display_name = 'hacked' WHERE id = $1`,
         [readOnlyUserId],
       );
 
-      await expectMutationDenied(
+      await expectUpdateOrDeleteBlocked(
         client,
         `DELETE FROM public.users WHERE id = $1`,
         [readOnlyUserId],
       );
 
-      await expectMutationDenied(
+      await expectInsertDenied(
         client,
         `INSERT INTO public.audit_events (action_type, entity_type, source)
          VALUES ('test', 'user', 'test')`,
       );
 
-      await expectMutationDenied(
+      await expectUpdateOrDeleteBlocked(
         client,
         `UPDATE public.audit_events SET after_summary = 'x' WHERE true`,
       );
 
-      await expectMutationDenied(
+      await expectUpdateOrDeleteBlocked(
         client,
         `DELETE FROM public.audit_events WHERE true`,
       );
 
-      await expectMutationDenied(
+      await expectInsertDenied(
         client,
         `INSERT INTO public.job_runs (job_key, idempotency_key, state)
          VALUES ('x', $1, 'pending')`,
         [`ro-${randomUUID()}`],
       );
 
-      await expectMutationDenied(
+      await expectUpdateOrDeleteBlocked(
         client,
         `UPDATE public.job_runs SET state = 'failed' WHERE true`,
       );
 
-      await expectMutationDenied(
+      await expectUpdateOrDeleteBlocked(
         client,
         `DELETE FROM public.job_runs WHERE true`,
       );
 
-      await expectMutationDenied(
+      await expectInsertDenied(
         client,
         `INSERT INTO public.app_settings (key, value) VALUES ($1, '{}'::jsonb)`,
         [`ro-setting-${randomUUID()}`],
       );
 
-      await expectMutationDenied(
+      await expectUpdateOrDeleteBlocked(
         client,
         `UPDATE public.app_settings SET value = '{"x":1}'::jsonb WHERE true`,
       );
 
-      await expectMutationDenied(
+      await expectUpdateOrDeleteBlocked(
         client,
         `DELETE FROM public.app_settings WHERE true`,
       );
@@ -503,69 +526,69 @@ describeDb("Phase 1 RLS integration", () => {
     // Even administrators must use privileged server paths for writes;
     // RLS provides no INSERT/UPDATE/DELETE policies for authenticated.
     await asAuthenticated(adminAuthId, async (client) => {
-      await expectMutationDenied(
+      await expectInsertDenied(
         client,
         `INSERT INTO public.users (email, status) VALUES ($1, 'active')`,
         [`admin-insert-${randomUUID()}@example.test`],
       );
 
-      await expectMutationDenied(
+      await expectUpdateOrDeleteBlocked(
         client,
         `UPDATE public.users SET display_name = 'browser-write' WHERE id = $1`,
         [adminUserId],
       );
 
-      await expectMutationDenied(
+      await expectUpdateOrDeleteBlocked(
         client,
         `DELETE FROM public.users WHERE id = $1`,
         [readOnlyUserId],
       );
 
-      await expectMutationDenied(
+      await expectInsertDenied(
         client,
         `INSERT INTO public.audit_events (action_type, entity_type, source)
          VALUES ('browser', 'user', 'test')`,
       );
 
-      await expectMutationDenied(
+      await expectUpdateOrDeleteBlocked(
         client,
         `UPDATE public.audit_events SET after_summary = 'browser' WHERE true`,
       );
 
-      await expectMutationDenied(
+      await expectUpdateOrDeleteBlocked(
         client,
         `DELETE FROM public.audit_events WHERE true`,
       );
 
-      await expectMutationDenied(
+      await expectInsertDenied(
         client,
         `INSERT INTO public.job_runs (job_key, idempotency_key, state)
          VALUES ('browser', $1, 'pending')`,
         [`admin-${randomUUID()}`],
       );
 
-      await expectMutationDenied(
+      await expectUpdateOrDeleteBlocked(
         client,
         `UPDATE public.job_runs SET state = 'cancelled' WHERE true`,
       );
 
-      await expectMutationDenied(
+      await expectUpdateOrDeleteBlocked(
         client,
         `DELETE FROM public.job_runs WHERE true`,
       );
 
-      await expectMutationDenied(
+      await expectInsertDenied(
         client,
         `INSERT INTO public.app_settings (key, value) VALUES ($1, '{}'::jsonb)`,
         [`admin-setting-${randomUUID()}`],
       );
 
-      await expectMutationDenied(
+      await expectUpdateOrDeleteBlocked(
         client,
         `UPDATE public.app_settings SET value = '{"browser":true}'::jsonb WHERE true`,
       );
 
-      await expectMutationDenied(
+      await expectUpdateOrDeleteBlocked(
         client,
         `DELETE FROM public.app_settings WHERE true`,
       );
