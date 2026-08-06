@@ -90,5 +90,7 @@ END;
 $$;
 
 REVOKE ALL ON FUNCTION public.bootstrap_oauth_user(uuid, text, text, text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.bootstrap_oauth_user(uuid, text, text, text) FROM anon;
+REVOKE ALL ON FUNCTION public.bootstrap_oauth_user(uuid, text, text, text) FROM authenticated;
 GRANT EXECUTE ON FUNCTION public.bootstrap_oauth_user(uuid, text, text, text) TO service_role;
 -- Intentionally NOT granted to authenticated or anon.

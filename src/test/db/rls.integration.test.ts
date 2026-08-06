@@ -311,7 +311,7 @@ describeDb("Phase 1 RLS integration", () => {
           `SELECT public.bootstrap_oauth_user($1::uuid, $2, $3, $4)`,
           [randomUUID(), "x@example.test", "X", "read_only"],
         ),
-      ).rejects.toThrow();
+      ).rejects.toThrow(/permission denied|must be owner/i);
 
       await client.query("ROLLBACK");
 
@@ -322,11 +322,24 @@ describeDb("Phase 1 RLS integration", () => {
           `SELECT public.bootstrap_oauth_user($1::uuid, $2, $3, $4)`,
           [randomUUID(), "y@example.test", "Y", "read_only"],
         ),
-      ).rejects.toThrow();
+      ).rejects.toThrow(/permission denied|must be owner/i);
       await client.query("ROLLBACK");
     } finally {
       client.release();
     }
+
+    // PostgREST surface: anon JWT must not invoke the RPC successfully.
+    const anon = createClient(supabaseUrl, anonKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const { data, error } = await anon.rpc("bootstrap_oauth_user", {
+      p_auth_user_id: randomUUID(),
+      p_email: "z@example.test",
+      p_display_name: "Z",
+      p_role_key: "read_only",
+    });
+    expect(data).toBeNull();
+    expect(error).not.toBeNull();
   });
 });
 
