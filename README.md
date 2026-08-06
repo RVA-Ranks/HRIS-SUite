@@ -13,7 +13,7 @@ Personal HR operating system for AITHERAS recruiting and HR workflows. This repo
 | --- | --- |
 | **Phase 0A** — Architecture & security approval | **Technically approved** |
 | **Phase 0B** — Live integration proofs (JazzHR, Google, Drive, external systems) | Open — does **not** block Phase 1 shell |
-| **Phase 1** — Secure application shell | Foundation on `phase-1/secure-platform-foundation` — **awaiting final security-gate approval** (PR #2); repository must be **private** before merge (Daniel-owned) |
+| **Phase 1** — Secure application shell | Foundation on `phase-1/secure-platform-foundation` — **awaiting final security-gate approval** (PR #2); repository must be **private** before merge (Daniel-owned; not yet confirmed) |
 | Application code | Next.js 16 scaffold with auth, RBAC, RLS, audit, shell UI, AI Gateway boundary |
 
 **Governing rule:** Existing Performance Review, Compensation, Apps Script, and related Google/Adobe workflows are **external reference implementations**. Phase 1 builds a clean Daniel-only shell with manual intake and linked records. Automation is earned after integrations are proven.
