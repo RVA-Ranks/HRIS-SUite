@@ -1,0 +1,110 @@
+name: Phase 1 app checks
+
+on:
+  push:
+    branches: [main, "phase-*/**"]
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  secret-scan:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  markdown-links:
+    name: Markdown link validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Check Markdown links
+        uses: lycheeverse/lychee-action@7cd0af4c74a61395d455af97419279d86aafaede # v2.0.2
+        with:
+          args: >-
+            --verbose
+            --no-progress
+            --timeout 20
+            README.md
+            AGENTS.md
+            DANIEL_HRIS_MASTER_IMPLEMENTATION_ROADMAP_FOR_CARL.md
+            docs/phase-0/**/*.md
+            docs/phase-1/**/*.md
+          fail: true
+
+  # Markdownlint deferred — link validation + app quality gates cover Phase 1 CI scope.
+
+  quality:
+    name: Lint, typecheck, test, build, e2e
+    runs-on: ubuntu-latest
+    env:
+      AUTH_ALLOWLIST_EMAILS: daniel@example.com
+      AUTH_ADMIN_EMAILS: daniel@example.com
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: fabricatd-anon-key-for-ci-only
+      AI_GLOBAL_KILL_SWITCH: "true"
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "20"
+          cache: npm
+      - run: npm ci
+      - run: npm audit --audit-level=high
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run test
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npx playwright test
+
+  db-rls:
+    name: Supabase RLS integration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      # Node 22+: @supabase/supabase-js requires native WebSocket (Node 20 fails createClient).
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v3.0.0
+        with:
+          version: 2.50.14
+      - name: Start local Supabase and apply migrations
+        run: |
+          supabase start
+          supabase db reset --yes
+      - name: Export local Supabase credentials
+        run: |
+          eval "$(supabase status -o env)"
+          {
+            echo "NEXT_PUBLIC_SUPABASE_URL=${API_URL}"
+            echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=${ANON_KEY}"
+            echo "SUPABASE_SERVICE_ROLE_KEY=${SERVICE_ROLE_KEY}"
+            if [ -n "${DB_URL:-}" ]; then
+              echo "DATABASE_URL=${DB_URL}"
+            elif [ -n "${POSTGRES_URL:-}" ]; then
+              echo "DATABASE_URL=${POSTGRES_URL}"
+            else
+              echo "DATABASE_URL is missing from supabase status" >&2
+              exit 1
+            fi
+          } >> "$GITHUB_ENV"
+          test -n "${API_URL}"
+          test -n "${ANON_KEY}"
+          test -n "${SERVICE_ROLE_KEY}"
+      - name: Run RLS integration tests
+        env:
+          RUN_DB_INTEGRATION: "1"
+        run: npm run test:db
