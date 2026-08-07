@@ -19,7 +19,7 @@ This file binds AI agents working in **RVA-Ranks/HRIS-SUite**. Human authority r
 | --- | --- |
 | **Phase 0A** | Architecture & security decisions approved |
 | **Phase 0B** | Live integration proofs (JazzHR, Google, Drive, etc.) — can stay open |
-| **Phase 1** | Secure shell allowed **after Phase 0A** (and private repo), even if 0B is incomplete |
+| **Phase 1** | Secure shell allowed **after Phase 0A** (repository may remain public for Code Coach review) |
 | Later phases | Require prior phase gate + Daniel approval |
 
 **Do not advance phases** without Daniel and Code Coach review.
@@ -33,11 +33,12 @@ JazzHR résumé retrieval is a hard gate for **candidate matching**, not for Nex
 - **No production HR data** in source, logs committed to git, tests, fixtures, screenshots in PRs, or seed files.
 - Use **fabricated** fixtures only.
 - Secrets exist only as **server-side environment variables** (and approved secret managers). Never in client bundles, commits, or agent transcripts that get pasted into issues.
-- The GitHub repository **must be private** before credentials or production use. Do not add application code until it is private (Daniel action). Carl must **not** change repository visibility.
+- The GitHub repository is **intentionally public** for Code Coach review. Never commit credentials, employee information, résumés, production configuration, or other sensitive data. Carl must **not** change repository visibility.
 - No direct external sends (email, calendar publish, ATS writes, handbook distribution) without explicit human approval flows.
 - No AI-enabled material actions without Approval Center / explicit confirmation patterns from the roadmap.
 - OpenAI calls only through the central AI Gateway once provisioned; never direct SDK use from UI or ad hoc routes.
 - MCP tools must call domain services with the same authorization as the UI; never bypass Approval Center.
+- Do not push empty commits merely to retrigger CI.
 
 ---
 

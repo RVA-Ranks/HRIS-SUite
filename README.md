@@ -13,7 +13,7 @@ Personal HR operating system for AITHERAS recruiting and HR workflows. This repo
 | --- | --- |
 | **Phase 0A** — Architecture & security approval | **Technically approved** |
 | **Phase 0B** — Live integration proofs (JazzHR, Google, Drive, external systems) | Open — does **not** block Phase 1 shell |
-| **Phase 1** — Secure application shell | Foundation on `phase-1/secure-platform-foundation` — **awaiting final security-gate approval** (PR #2); repository must be **private** before merge (Daniel-owned; not yet confirmed) |
+| **Phase 1** — Secure application shell | **Technically approved (97%)** on `phase-1/secure-platform-foundation` (PR #2) — awaiting one fresh CI suite on the final docs head, then merge |
 | Application code | Next.js 16 scaffold with auth, RBAC, RLS, audit, shell UI, AI Gateway boundary |
 
 **Governing rule:** Existing Performance Review, Compensation, Apps Script, and related Google/Adobe workflows are **external reference implementations**. Phase 1 builds a clean Daniel-only shell with manual intake and linked records. Automation is earned after integrations are proven.
@@ -52,9 +52,9 @@ docs/phase-1/                                           # Phase 1 start report
 
 ## Security and data-handling rules
 
-1. **Repository must be private** before credentials, production use, or any application code, integration artifacts, screenshots of real data, or fixtures derived from real HR content are added. Visibility changes are **Daniel-only** — Carl must **not** change GitHub repository visibility (no public/private toggles).
-2. **No secrets in git** — use server-side environment variables only. Never commit `.env`, API keys, OAuth tokens, or credential JSON.
-3. **No production HR data** in source, tests, fixtures, logs committed to the repo, or PR descriptions. Use fabricated data only.
+1. **Repository visibility is intentionally public** so Code Coach can review consistently. Public source is acceptable. Carl must **not** change GitHub repository visibility.
+2. **Never commit** credentials, API keys, OAuth tokens, `.env` values, employee information, résumés/CVs, production configuration, integration secrets, or other sensitive HR data. Use fabricated fixtures only. Secrets stay in server-side environment variables / secret managers.
+3. **No production HR data** in source, tests, fixtures, logs committed to the repo, or PR descriptions.
 4. `.gitignore` is necessary but not sufficient — treat every commit as potentially reviewable.
 5. Job payloads should carry **record IDs**, not résumé text, email bodies, or compensation values, whenever possible.
 6. Google Drive: OAuth scopes ≠ folder restrictions. Enforce approved folder IDs in application code and validate every file ID server-side.

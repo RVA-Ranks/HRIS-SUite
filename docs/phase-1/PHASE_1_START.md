@@ -12,7 +12,7 @@
 5. **Pattern C worker auth** — documented in `docs/phase-0/WORKER_AUTHORIZATION.md`; no worker runtime in Phase 1.
 6. **Allowlist + admin bootstrap** — `AUTH_ALLOWLIST_EMAILS` controls login eligibility; `AUTH_ADMIN_EMAILS` controls who receives the administrator role. Daniel must be on **both**. Other allowlisted users receive `read_only`.
 7. **RLS is mandatory** — foundation tables must not be used without `20260805210000_phase1_rls.sql`. Fail-closed: anon has no policies; authenticated clients are SELECT-only via permission checks; writes go through the service-role admin client on approved server paths.
-8. **Repository must be private** — Required before credentials or production use. Visibility remains Daniel’s action only. **Carl must not change repository visibility** (no private/public toggles). No production HR data in repo.
+8. **Repository is intentionally public** for Code Coach review. Never commit credentials, employee information, résumés, production configuration, or other sensitive HR data. **Carl must not change repository visibility.**
 
 ## Delivered in Phase 1 foundation
 
