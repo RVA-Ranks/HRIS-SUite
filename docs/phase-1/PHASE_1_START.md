@@ -35,10 +35,12 @@
 1. Apply migrations in order:
    - `supabase/migrations/20260805000000_phase1_foundation.sql`
    - `supabase/migrations/20260805210000_phase1_rls.sql`
-   - `supabase/migrations/20260805220000_phase1_oauth_bootstrap.sql`  
-   Never leave foundation applied without the RLS (+ bootstrap) migrations in staging/production.
-2. Configure `.env.local` from `.env.example` with Supabase keys, `AUTH_ALLOWLIST_EMAILS`, `AUTH_ADMIN_EMAILS`, and `SUPABASE_SERVICE_ROLE_KEY` (server only).
-3. Sign in with Google; confirm allowlist denial audits and role assignment (admin vs read_only).
+   - `supabase/migrations/20260805220000_phase1_oauth_bootstrap.sql`
+   - `supabase/migrations/20260805230000_phase1_revoke_bootstrap_execute.sql`
+   - `supabase/migrations/20261117120000_phase1_oauth_role_isolation.sql`  
+   Never leave foundation applied without the RLS, bootstrap, revocation, and role-isolation migrations in staging/production.
+2. Configure `.env.local` from `.env.example` with Supabase keys, `AUTH_ALLOWLIST_EMAILS`, `AUTH_ADMIN_EMAILS`, optional restricted-role email lists, and `SUPABASE_SERVICE_ROLE_KEY` (server only).
+3. Sign in with Google; confirm allowlist denial audits, exclusive role assignment, and that disabled accounts cannot self-reactivate.
 4. Visit each nav module; confirm permission gates and empty/disconnected states (no fake metrics).
 5. Confirm `/api/health` returns `configured` when env is complete.
 

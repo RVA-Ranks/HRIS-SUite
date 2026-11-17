@@ -28,6 +28,8 @@ const publicEnvSchema = z.object({
 const serverEnvSchema = z.object({
   AUTH_ALLOWLIST_EMAILS: z.string().optional(),
   AUTH_ADMIN_EMAILS: z.string().optional(),
+  AUTH_STAFF_SUBMITTER_EMAILS: z.string().optional(),
+  AUTH_HR_REVIEWER_EMAILS: z.string().optional(),
   OPENAI_API_KEY: z.string().min(1).optional(),
   OPENAI_PROJECT_ID: z.string().optional(),
   AI_GLOBAL_KILL_SWITCH: z.string().optional(),
@@ -40,6 +42,10 @@ export type ServerEnv = {
   authAllowlistEmails: string[];
   /** Initial administrator bootstrap only — must also be on the allowlist. */
   authAdminEmails: string[];
+  /** Trusted staff_submitter provisioning — mutually exclusive with read_only. */
+  authStaffSubmitterEmails: string[];
+  /** Trusted hr_reviewer provisioning — mutually exclusive with read_only. */
+  authHrReviewerEmails: string[];
   openaiApiKey?: string;
   openaiProjectId?: string;
   aiGlobalKillSwitch: boolean;
@@ -73,6 +79,8 @@ export function getServerEnv(): ServerEnv {
   serverEnvSchema.parse({
     AUTH_ALLOWLIST_EMAILS: process.env.AUTH_ALLOWLIST_EMAILS,
     AUTH_ADMIN_EMAILS: process.env.AUTH_ADMIN_EMAILS,
+    AUTH_STAFF_SUBMITTER_EMAILS: process.env.AUTH_STAFF_SUBMITTER_EMAILS,
+    AUTH_HR_REVIEWER_EMAILS: process.env.AUTH_HR_REVIEWER_EMAILS,
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
     OPENAI_PROJECT_ID: process.env.OPENAI_PROJECT_ID,
     AI_GLOBAL_KILL_SWITCH: process.env.AI_GLOBAL_KILL_SWITCH,
@@ -82,6 +90,10 @@ export function getServerEnv(): ServerEnv {
   cachedServerEnv = {
     authAllowlistEmails: parseEmailList(process.env.AUTH_ALLOWLIST_EMAILS),
     authAdminEmails: parseEmailList(process.env.AUTH_ADMIN_EMAILS),
+    authStaffSubmitterEmails: parseEmailList(
+      process.env.AUTH_STAFF_SUBMITTER_EMAILS,
+    ),
+    authHrReviewerEmails: parseEmailList(process.env.AUTH_HR_REVIEWER_EMAILS),
     openaiApiKey: process.env.OPENAI_API_KEY,
     openaiProjectId: process.env.OPENAI_PROJECT_ID,
     aiGlobalKillSwitch: parseBoolean(process.env.AI_GLOBAL_KILL_SWITCH, true),

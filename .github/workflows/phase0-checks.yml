@@ -38,6 +38,8 @@ jobs:
             AGENTS.md
             DANIEL_HRIS_MASTER_IMPLEMENTATION_ROADMAP_FOR_CARL.md
             docs/phase-0/**/*.md
+            docs/phase-1/**/*.md
+            docs/phase-2/**/*.md
           fail: true
 
   # Deferred to Phase 1 application scaffold (do not claim Markdownlint is covered by link checks):

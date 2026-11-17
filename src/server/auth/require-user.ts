@@ -172,3 +172,11 @@ export function getConfiguredAllowlist(): string[] {
 export function getConfiguredAdminEmails(): string[] {
   return getServerEnv().authAdminEmails;
 }
+
+export function getConfiguredStaffSubmitterEmails(): string[] {
+  return getServerEnv().authStaffSubmitterEmails;
+}
+
+export function getConfiguredHrReviewerEmails(): string[] {
+  return getServerEnv().authHrReviewerEmails;
+}

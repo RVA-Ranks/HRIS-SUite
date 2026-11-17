@@ -33,5 +33,7 @@ describe("permissions", () => {
   it("exports stable role keys", () => {
     expect(ROLE_KEYS.ADMINISTRATOR).toBe("administrator");
     expect(ROLE_KEYS.READ_ONLY).toBe("read_only");
+    expect(ROLE_KEYS.STAFF_SUBMITTER).toBe("staff_submitter");
+    expect(ROLE_KEYS.HR_REVIEWER).toBe("hr_reviewer");
   });
 });
