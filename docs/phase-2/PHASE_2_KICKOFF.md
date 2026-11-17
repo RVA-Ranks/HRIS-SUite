@@ -1,8 +1,8 @@
 # Phase 2 kickoff brief — Command Center + Shared Open Item Tracker
 
-**Status:** Draft for Daniel / Code Coach approval; NO Phase 2 implementation until approved.  
-**Parent:** `main` @ `83a6935` (PR #2 merged; Phase 0/1 CI green on `8d303e9`).  
-**Future branch:** `phase-2/command-center-mvp` (create only after this kickoff is approved).  
+**Status:** Code Coach design review: **conditional approval only**. Phase 2 coding is blocked until the November 17 security hotfix, role-bootstrap safeguards, and green CI are complete; no production staff rollout approved.  
+**Parent:** `main` after the PR #2 squash merge (`83a6935`) and the November 2026 dependency-security hotfix. Branch must originate from the **final updated `main`**, not the old merge SHA.  
+**Future branch:** `phase-2/command-center-mvp`.  
 **Timezone:** `America/New_York`.  
 **Architecture:** Next.js / TypeScript / Vercel; Supabase Postgres, Auth, RLS; existing Phase 1 audit and permission boundary.  
 **Repository:** intentionally public for source review. No credentials, production HR data, employee/candidate records, or genuine attachments in source, tests, screenshots, PRs, or logs.
@@ -14,6 +14,16 @@ Deliver a usable **manual Command Center** covering positions, tasks, deadlines,
 This is a scope amendment to the original Daniel-only Phase 1–9 posture and the original Phase 3 file-intake plan. **Before implementation, Daniel must approve the limited staff-submitter role and the permitted attachment storage pattern; amend the governing roadmap and Decision Register D07/D23 to document this exception.** No broad release to staff is authorized by this draft alone.
 
 Keep it manual: no JazzHR/Gmail/Calendar sync or sends, no OpenAI execution, no Trigger.dev workers, no ATS writes, no production credentials or real HR records in staging. In-app notices are allowed; external notifications are deferred.
+
+## 1A. Mandatory Phase 2 entry gates — November 17, 2026 review
+
+The following are **blocking** before Phase 2 application coding, even if documentation PR #3 passes its own link/security scans:
+
+1. **Repair dependency-audit failure on a separate security PR.** The November 17 Phase 1 app checks run fails at `npm audit --audit-level=high`: 18 findings, including a critical Next.js advisory. Upgrade affected direct and transitive packages to supported patched versions (audit identifies Next.js 16.4.6 as a candidate), regenerate the committed lockfile, run the full unit/typecheck/lint/build/Playwright/RLS suite and require green CI on the final head. Do not suppress or skip the audit and do not run `npm audit fix --force` without reviewing dependency changes.
+2. **Make OAuth role bootstrap exclusive.** The current `src/app/auth/callback/route.ts` assigns `read_only` to every non-admin login. The Phase 1 `bootstrap_oauth_user` RPC removes only `administrator` and `read_only`, while preserving other roles. Therefore assigning `staff_submitter` or `hr_reviewer` alone could leave/reintroduce `read_only`, which has audit and job-read permissions. Specify trusted, server-side provisioning for `staff_submitter` and `hr_reviewer`; on every login reconcile mutually exclusive baseline roles and prohibit unapproved role combinations. New accounts default to no more than read-only; never derive roles from browser input. Add login/re-login negative tests confirming staff have neither `audit.read` nor `jobs.read`.
+3. **Do not reactivate disabled users.** Current Phase 1 `bootstrap_oauth_user` upserts `users.status='active'` on repeated login, so an allowlisted deactivated user may regain active status. Preserve a disabled/revoked state in the bootstrap RPC and fail closed in the callback. Reactivation must be a separate audited, explicitly authorized administrator action. Test attempted re-login after deactivation.
+4. **Expand docs CI coverage.** Both current Markdown-link workflows omit `docs/phase-2/**/*.md` from their explicit file globs. Include that directory in at least one required workflow before claiming Phase 2 documents were validated.
+5. **Scope approval.** The `staff_submitter` and narrowly scoped `hr_reviewer` identities are allowed for fabricated-only development and tests after the preceding gates. This does **not** authorize actual staff access or uploads of real HR documents.
 
 ## 2. Functional scope
 
@@ -28,7 +38,7 @@ Keep it manual: no JazzHR/Gmail/Calendar sync or sends, no OpenAI execution, no 
 ### 2.2 Shared Open Item Tracker — Phase 2 acceptance requirement
 
 - A staff submitter signs in via the existing approved Google OAuth allowlist and can submit a title, question/description, optional category and priority, and an optional attachment.
-- Successful submission **atomically creates a task** with `source_type = staff_submission`, `status = new`, immutable `submitted_by_user_id`, and initial activity event. It appears in Daniel's New/Open Items triage queue without email.
+- Successful submission creates **one database transaction** containing the task, idempotency record, and initial activity event, with `source_type = staff_submission`, `status = new`, and immutable `submitted_by_user_id`. It appears in Daniel's New/Open Items triage queue without email.
 - A configured default assignee may receive new items. Without one, the item stays in the **unassigned** queue; do not silently assign to an arbitrary user.
 - Daniel/authorized HR reviewers may assign, change priority/due date, comment, request information, resolve, reopen, or archive an item. Submitters can view and comment on **their own permitted** items but cannot change assignee, visibility, classification, approval state, or other users' items.
 - Default workflow: `new -> triaged -> in_progress -> waiting_on_submitter -> resolved -> archived`; also allow `new/triaged/in_progress/waiting_on_submitter -> cancelled` with a recorded reason. Define valid transitions in one shared service function. `resolved` items may reopen; archive is reversible by admins.
@@ -62,7 +72,7 @@ Required semantics:
 
 ## 4. Permissions, privacy, and attachment security
 
-Define explicit permissions: `tasks.create_own`, `tasks.read_own`, `tasks.comment_own`, `tasks.read_assigned`, `tasks.assign`, `tasks.manage`, `tasks.read_restricted`, `documents.upload_own`, `documents.read_permitted`, `approvals.review`, `positions.manage`. Extend Phase 1 roles only by migrations and tests.
+Define explicit permissions: `tasks.create_own`, `tasks.read_own`, `tasks.comment_own`, `tasks.read_assigned`, `tasks.assign`, `tasks.manage`, `tasks.read_restricted`, `documents.upload_own`, `documents.read_permitted`, `approvals.review`, `positions.manage`. Extend Phase 1 roles only by migrations and tests. Include the trusted OAuth bootstrap/mapping changes in the same tested security boundary; do not simply grant `staff_submitter` as an additional role to a `read_only` account.
 
 Initial actors for fabricated testing:
 
@@ -73,7 +83,37 @@ Initial actors for fabricated testing:
 
 Enforce authorization in domain services AND Supabase RLS/Storage policies; UI hiding alone is insufficient. Never use a service-role client to return unfiltered task lists/attachments. Do not expose direct storage paths or public buckets. Prefer reference-only to an approved system of record when possible; for a true upload, use one explicitly approved private storage bucket and store its object key in `documents`, not uncontrolled file copies. Provide short-lived permission-checked signed download links. Do not rely on links themselves as the authorization mechanism.
 
+**Staging storage decision:** Use a dedicated private Supabase Storage bucket for fabricated test attachments only (`open-item-attachments-staging`) with signed, short-lived server-authorized download URLs and no public-list or object-read grants. Prefer an adapter/interface so production may later use an approved enterprise document system instead. Production destination, malware-control design, access revocation, retention, and incident response remain separate explicit approval gates. A signed URL is a temporary bearer credential; authorization must be checked before issuance, the TTL must be short, and existing issued links cannot be assumed instantly revoked.
+
+**Cross-system atomicity:** Database transactions cannot atomically commit Supabase object storage. Implement a `pending_upload -> validated -> linked` workflow. Store/finalize the task and its attachment metadata consistently in Postgres, compensate/expire orphaned pending objects on failure, and provide a tested manual cleanup/reconciliation mechanism while external workers are deferred. Never display an object as attached until DB finalization succeeds.
+
 For fabricated staging only, candidate supported attachment types: PDF, DOCX, XLSX, PNG, JPEG; maximum 10 MB (both configurable). Validate content signature where practical, actual MIME, extension, size, filename, authorization, and user quota on the server. Reject executables and unsupported formats. Upload completion must not leave an accessible orphan or falsely mark a failed file as attached. **Do not enable genuine HR files until storage approval, malware-handling process, retention/deletion policy, incident response, and access/revocation tests are signed off.** No public sharing or file indexing.
+
+## 4A. Required account-to-permission mapping
+
+| Role | Allowed | Explicitly denied |
+| --- | --- | --- |
+| `administrator` | Manage operational records, assign tasks, review scoped approvals, administer role grants | Secrets in UI; unrestricted bypass of field classification |
+| `staff_submitter` | Create own internal-classification items, read/comment/download own permitted items | `audit.read`, `jobs.read`, settings, other submissions, reviewer-only notes, role assignment, compensation |
+| `hr_reviewer` | Read and triage only assigned or explicitly queue-authorized items; write restricted reviewer notes | Other organizations' records, highly restricted fields without separate grant, system-wide admin privileges |
+| `read_only` (legacy Phase 1) | Existing approved Phase 1 read permissions only | New submissions, attachments, task mutation, implied `staff_submitter` rights |
+| Inactive / unallowlisted / anonymous | Nothing protected | Every protected record and object |
+
+Do not allow an account to acquire broad `read_only` permissions merely by having a `staff_submitter` or `hr_reviewer` role. The permission checks must be negative-tested in authenticated Supabase client sessions, not only as UI visibility checks.
+
+## 4B. Open-item transition matrix
+
+| From | Allowed next states | Actor |
+| --- | --- | --- |
+| `new` | `triaged`, `cancelled` | Reviewer/admin |
+| `triaged` | `in_progress`, `waiting_on_submitter`, `cancelled` | Reviewer/admin |
+| `in_progress` | `waiting_on_submitter`, `resolved`, `cancelled` | Reviewer/admin |
+| `waiting_on_submitter` | `in_progress`, `resolved`, `cancelled` | Reviewer/admin; submitter may comment but not change state |
+| `resolved` | `in_progress`, `archived` | Reviewer/admin |
+| `cancelled` | `triaged`, `archived` | Admin; reason required |
+| `archived` | `triaged` | Admin; audited restoration |
+
+All unsupported transitions return a typed error with no partial update. Require a reason for cancellation and a completion note for resolution; use optimistic concurrency (`updated_at` or version check) so stale browser views cannot overwrite newer changes.
 
 ## 5. UX map / wireframe IDs
 
@@ -118,12 +158,12 @@ All mutations require session+permission checks, Zod validation, database transa
 4. Staff submits without attachment; task still appears. Empty title, invalid MIME, over-limit upload, and malformed date are rejected clearly without phantom accessible attachments.
 5. Reviewer assigns, comments privately, requests clarification, resolves, and reopens the task; submitter sees allowed notes/status but **not** reviewer-only notes or administrative metadata.
 6. An unrelated submitter cannot view, enumerate, edit, comment on, or download someone else's task or attachment via direct URL, API, SQL client, or guessed object path. Negative tests prove RLS and Storage denial.
-7. `read_only` role cannot accidentally gain staff submission privileges or new private data access; anonymous and inactive identities are denied.
+7. `read_only` role cannot accidentally gain staff submission privileges or new private data access; staff login/re-login does not inherit `read_only` audit/jobs access; inactive users cannot be reactivated by OAuth callback; anonymous identities are denied.
 8. Repeated submit/retry/double-click produces one task and no orphan file. Upload timeout and partial failures have deterministic recovery and audit states.
 9. Complete/reopen/archive and due-date changes update filtered list/dashboard counts consistently; date-only values do not shift across UTC boundaries or DST.
 10. Unauthorized approval transition is denied; authorized approve/reject records actor/timestamp/audit; no email, calendar, ATS, or AI call occurs.
 11. Position, task, comment, and attachment queries exclude restricted compensation/employee information for submitters and ordinary reviewers.
-12. CI: secret scan, dependency audit, lint, typecheck, unit tests, production build, Playwright, migration reset, new RLS/storage integration tests, and existing Phase 0/1 regression suites all green on the exact head.
+12. CI: secret scan, patched dependency audit, lint, typecheck, unit tests, production build, Playwright, migration reset, new RLS/storage integration tests, and existing Phase 0/1 regression suites all green on the exact head; Phase 2 Markdown files included in link checks.
 13. Staging uses fabricated data and nonproduction credentials only. Manual sign-in tests with at least administrator, submitter, reviewer, and unauthorized accounts pass.
 14. Phase completion report includes changed files, migrations, environment-variable names only, tests/run URLs, limitations, manual acceptance evidence, and rollback steps. Daniel and Code Coach review required before merge.
 
@@ -138,9 +178,9 @@ All mutations require session+permission checks, Zod validation, database transa
 
 ## 9. Carl — ordered task list
 
-1. PR #2 is merged. Pull updated `main`; create `phase-2/command-center-mvp` from the merge commit **only after this kickoff is approved**. Do not make Phase 2 application changes on other branches.
+1. Wait until PR #2 is merged and the November security hotfix is on `main`. Pull updated `main`; create `phase-2/command-center-mvp` from that final head **only after entry gates and this kickoff are approved**. Do not make Phase 2 application changes on other branches.
 2. Update source-of-truth roadmap and Decision Register D07/D23 to reflect the restricted staff submission exception and file storage approval gate; clean stale public/private wording before code. Show the proposed policy change to Daniel for sign-off.
-3. Write the phase-start report and schema/permission/transition matrix. List exact files, migrations, and an incremental reversible implementation plan; get kickoff approval before implementation.
+3. Write the phase-start report and schema/permission/transition matrix, including exclusive OAuth role bootstrap, disabled-account behavior, and staged-object cleanup. List exact files, migrations, and an incremental reversible implementation plan; get kickoff approval before implementation.
 4. Implement additive SQL schema and RLS/Storage policies first, with cross-user negative integration tests. No real data.
 5. Build canonical task service, submission/comment/attachment flows, staff-aware nav, and reviewer triage UI. Add idempotency and audit events.
 6. Build positions, ordinary tasks/deadlines, dashboard count queries, and approval state machine; maintain Phase 1 restrictions and no external side effects.
