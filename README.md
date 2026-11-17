@@ -11,10 +11,10 @@ Personal HR operating system for AITHERAS recruiting and HR workflows. This repo
 
 | Track | Status |
 | --- | --- |
-| **Phase 0A** — Architecture & security approval | In progress — docs hardening / awaiting Daniel + Code Coach review |
+| **Phase 0A** — Architecture & security approval | **Technically approved** |
 | **Phase 0B** — Live integration proofs (JazzHR, Google, Drive, external systems) | Open — does **not** block Phase 1 shell |
-| **Phase 1** — Secure application shell | **Blocked until Phase 0A approved** and repository is **private** |
-| Application code | None yet (greenfield planning docs only) |
+| **Phase 1** — Secure application shell | **Technically approved (97%)** on `phase-1/secure-platform-foundation` (PR #2) — awaiting one fresh CI suite on the final docs head, then merge |
+| Application code | Next.js 16 scaffold with auth, RBAC, RLS, audit, shell UI, AI Gateway boundary |
 
 **Governing rule:** Existing Performance Review, Compensation, Apps Script, and related Google/Adobe workflows are **external reference implementations**. Phase 1 builds a clean Daniel-only shell with manual intake and linked records. Automation is earned after integrations are proven.
 
@@ -41,23 +41,20 @@ DANIEL_HRIS_MASTER_IMPLEMENTATION_ROADMAP_FOR_CARL.md   # Build contract
 AGENTS.md                                               # Rules for Carl / agents
 README.md                                               # This file
 .env.example                                            # Env var names only
+src/                                                    # Next.js App Router application
+supabase/migrations/                                    # SQL migrations
 docs/phase-0/                                           # Phase 0 working package
-  PHASE_0_REPORT.md
-  DECISION_REGISTER.md
-  QUEUE_DECISION_MEMO.md
-  ACCESS_MATRIX.md
-  EVAL_COLLECTION_SCHEMA.md
-  WORKER_AUTHORIZATION.md
-.github/workflows/                                      # CI checks (docs/security)
+docs/phase-1/                                           # Phase 1 start report
+.github/workflows/                                      # CI checks (docs + app quality)
 ```
 
 ---
 
 ## Security and data-handling rules
 
-1. **Make this repository private** before any application code, integration artifacts, screenshots of real data, or fixtures derived from real HR content are added.
-2. **No secrets in git** — use server-side environment variables only. Never commit `.env`, API keys, OAuth tokens, or credential JSON.
-3. **No production HR data** in source, tests, fixtures, logs committed to the repo, or PR descriptions. Use fabricated data only.
+1. **Repository visibility is intentionally public** so Code Coach can review consistently. Public source is acceptable. Carl must **not** change GitHub repository visibility.
+2. **Never commit** credentials, API keys, OAuth tokens, `.env` values, employee information, résumés/CVs, production configuration, integration secrets, or other sensitive HR data. Use fabricated fixtures only. Secrets stay in server-side environment variables / secret managers.
+3. **No production HR data** in source, tests, fixtures, logs committed to the repo, or PR descriptions.
 4. `.gitignore` is necessary but not sufficient — treat every commit as potentially reviewable.
 5. Job payloads should carry **record IDs**, not résumé text, email bodies, or compensation values, whenever possible.
 6. Google Drive: OAuth scopes ≠ folder restrictions. Enforce approved folder IDs in application code and validate every file ID server-side.
@@ -99,9 +96,20 @@ See `.env.example` for variable **names** only.
 
 ## Development commands
 
-Application scaffold does not exist yet. After Phase 1 Next.js scaffolding lands, this section will list `install`, `dev`, `lint`, `typecheck`, `test`, and `build` commands.
+```bash
+npm ci
+npm run dev          # local dev server
+npm run lint
+npm run typecheck
+npm run test         # Vitest unit tests
+npm run test:db      # RLS integration (requires RUN_DB_INTEGRATION=1 + local Supabase)
+npm run build
+npm run test:e2e     # Playwright smoke — CI builds first, then installs Chromium and runs e2e
+```
 
-Current docs CI: secret scan + Markdown **link** validation (`.github/workflows/phase0-checks.yml`). Markdownlint, dependency review, and app quality gates land with the Phase 1 scaffold.
+Auth: set `AUTH_ALLOWLIST_EMAILS` (who may sign in) and `AUTH_ADMIN_EMAILS` (administrator bootstrap). Daniel must be on both for admin access.
+
+CI (`.github/workflows/phase1-app.yml`): secret scan, Markdown link validation, lint, typecheck, unit tests, `npm audit`, production build, Playwright, and Supabase RLS integration (`db-rls`). Markdownlint remains deferred.
 
 ---
 
@@ -112,4 +120,5 @@ Current docs CI: secret scan + Markdown **link** validation (`.github/workflows/
 - [Decision register](./docs/phase-0/DECISION_REGISTER.md)
 - [Queue decision memo](./docs/phase-0/QUEUE_DECISION_MEMO.md)
 - [Worker authorization](./docs/phase-0/WORKER_AUTHORIZATION.md)
+- [Phase 1 start report](./docs/phase-1/PHASE_1_START.md)
 - [Agent rules](./AGENTS.md)

@@ -6,7 +6,7 @@
 
 | ID | Track | Decision | Owner | Evidence | Recommendation | Blocker? | Next action |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| D00 | 0A | Repository visibility | Daniel / Carl | Must stay private; ChatGPT/Codex app needs explicit access | Keep **Private**; do not reopen publicly for connector access | **Yes for app code** | Confirm private; grant connector access without making public |
+| D00 | 0A | Repository visibility | Daniel / Code Coach | Intentionally public for Code Coach review | Keep **public**; never commit secrets or HR data | No (not a merge blocker) | Enforce no-secrets / no-PII commit rules |
 | D01 | 0A | Repository posture | Daniel / Carl | Greenfield; baseline `e80292f` on `main` | Treat as **greenfield**. Feature branches + PRs for future work | No | Continue docs/PRs; no direct-to-main app commits |
 | D02 | 0A | Existing systems role | Daniel | Reviews/comp are GAS + Sheets | **Reference implementations only** | No | Daniel supplies Drive/Script access for 0B inventory |
 | D03 | 0A | App hosting | Daniel | Locked | **Next.js + TypeScript on Vercel** | No | Create Vercel project only after private repo + 0A |
@@ -38,7 +38,7 @@
 
 ## Blocker summary
 
-**Before application code:** D00 (private repo) + Phase 0A approvals (especially D06, D26, classification).
+**Before application code / merge:** Phase 0A approvals (especially D06, D26, classification). Repository may remain public for Code Coach review; secrets and HR PII must never be committed.
 
 **Before candidate matching:** D08 (and D09 if needed).
 
