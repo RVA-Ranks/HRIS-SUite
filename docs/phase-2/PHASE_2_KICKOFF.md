@@ -1,8 +1,8 @@
 # Phase 2 kickoff brief — Command Center + Shared Open Item Tracker
 
-**Status:** Code Coach design review: **conditional approval only**. Phase 2 coding is blocked until the November 17 security hotfix, role-bootstrap safeguards, and green CI are complete; no production staff rollout approved.  
-**Parent:** `main` after the PR #2 squash merge (`83a6935`) and the November 2026 dependency-security hotfix. Branch must originate from the **final updated `main`**, not the old merge SHA.  
-**Future branch:** `phase-2/command-center-mvp`.  
+**Status:** Design conditionally approved; November 17 security gates merged to `main` (`7a944a8`). Feature coding waits on Phase 2 start-report confirmation. No production staff rollout approved.  
+**Parent:** `main` @ `7a944a8` (includes PR #2 foundation, PR #4 security hotfix, PR #3 kickoff docs).  
+**Implementation branch:** `phase-2/command-center-mvp` (created from that `main`).  
 **Timezone:** `America/New_York`.  
 **Architecture:** Next.js / TypeScript / Vercel; Supabase Postgres, Auth, RLS; existing Phase 1 audit and permission boundary.  
 **Repository:** intentionally public for source review. No credentials, production HR data, employee/candidate records, or genuine attachments in source, tests, screenshots, PRs, or logs.
