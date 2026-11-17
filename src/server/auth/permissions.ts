@@ -4,6 +4,10 @@ export const ROLE_KEYS = {
   MANAGER: "manager",
   EXECUTIVE_APPROVER: "executive_approver",
   READ_ONLY: "read_only",
+  /** Restricted Phase 2 open-item submitter — never paired with read_only. */
+  STAFF_SUBMITTER: "staff_submitter",
+  /** Restricted Phase 2 open-item reviewer — never paired with read_only. */
+  HR_REVIEWER: "hr_reviewer",
 } as const;
 
 export type RoleKey = (typeof ROLE_KEYS)[keyof typeof ROLE_KEYS];

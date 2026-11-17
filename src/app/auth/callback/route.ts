@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { isEmailAllowlisted } from "@/server/auth/allowlist";
-import { ROLE_KEYS } from "@/server/auth/permissions";
+import { resolveBootstrapRole } from "@/server/auth/resolve-bootstrap-role";
 import {
   getConfiguredAdminEmails,
   getConfiguredAllowlist,
+  getConfiguredHrReviewerEmails,
+  getConfiguredStaffSubmitterEmails,
 } from "@/server/auth/require-user";
 import { getPublicEnv, requireRuntimeAuthEnv } from "@/lib/env";
 import { logger } from "@/lib/logger";
@@ -14,13 +16,12 @@ import { safeInternalPath } from "@/lib/urls";
 /**
  * OAuth callback.
  *
- * Daniel (and other admins) must be on BOTH AUTH_ALLOWLIST_EMAILS (login) and
- * AUTH_ADMIN_EMAILS (administrator role bootstrap). Allowlisted non-admins
- * receive the read_only role.
+ * Role keys are resolved only from trusted server-side email mappings
+ * (AUTH_ADMIN_EMAILS / AUTH_STAFF_SUBMITTER_EMAILS / AUTH_HR_REVIEWER_EMAILS).
+ * Browser input never supplies a role. Baseline roles are mutually exclusive;
+ * staff_submitter and hr_reviewer never inherit read_only.
  *
- * User upsert + role assignment run in a single SECURITY DEFINER RPC
- * (bootstrap_oauth_user) via the service-role client. Login audit inserts
- * fail closed: session is cleared and the user is sent back to login.
+ * Disabled accounts fail closed in bootstrap_oauth_user and cannot self-reactivate.
  */
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
@@ -70,7 +71,6 @@ export async function GET(request: Request) {
 
   const email = data.user.email;
   const allowlist = getConfiguredAllowlist();
-  const adminEmails = getConfiguredAdminEmails();
 
   if (!isEmailAllowlisted(email, allowlist)) {
     await supabase.auth.signOut();
@@ -95,9 +95,11 @@ export async function GET(request: Request) {
     (data.user.user_metadata?.full_name as string | undefined) ??
     email.split("@")[0];
 
-  const roleKey = isEmailAllowlisted(email, adminEmails)
-    ? ROLE_KEYS.ADMINISTRATOR
-    : ROLE_KEYS.READ_ONLY;
+  const roleKey = resolveBootstrapRole(email, {
+    adminEmails: getConfiguredAdminEmails(),
+    staffSubmitterEmails: getConfiguredStaffSubmitterEmails(),
+    hrReviewerEmails: getConfiguredHrReviewerEmails(),
+  });
 
   const { data: appUserId, error: bootstrapError } = await admin.rpc(
     "bootstrap_oauth_user",
@@ -110,12 +112,19 @@ export async function GET(request: Request) {
   );
 
   if (bootstrapError || !appUserId) {
+    const message = bootstrapError?.message ?? "missing user id";
+    const disabled =
+      /account is (inactive|disabled|revoked|not active)/i.test(message);
     logger.error("auth.callback bootstrap failed", {
-      error: bootstrapError?.message ?? "missing user id",
+      error: message,
+      disabled,
     });
     await supabase.auth.signOut();
     return NextResponse.redirect(
-      new URL("/login?reason=bootstrap", requestUrl.origin),
+      new URL(
+        disabled ? "/denied?reason=disabled" : "/login?reason=bootstrap",
+        requestUrl.origin,
+      ),
     );
   }
 

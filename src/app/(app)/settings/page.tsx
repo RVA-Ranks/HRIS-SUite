@@ -44,8 +44,17 @@ export default async function SettingsPage() {
           <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">
             AUTH_ADMIN_EMAILS
           </code>
-          . Daniel must be on both lists for admin access; other allowlisted
-          users receive the read_only role.
+          . Daniel must be on both lists for admin access. Restricted roles use
+          trusted server mappings (
+          <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">
+            AUTH_STAFF_SUBMITTER_EMAILS
+          </code>
+          {" / "}
+          <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs">
+            AUTH_HR_REVIEWER_EMAILS
+          </code>
+          ); other allowlisted users default to read_only. Baseline roles are
+          mutually exclusive.
         </p>
         <p className="mt-3 text-sm text-slate-700">
           Configured allowlist entries:{" "}

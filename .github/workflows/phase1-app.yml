@@ -39,6 +39,7 @@ jobs:
             DANIEL_HRIS_MASTER_IMPLEMENTATION_ROADMAP_FOR_CARL.md
             docs/phase-0/**/*.md
             docs/phase-1/**/*.md
+            docs/phase-2/**/*.md
           fail: true
 
   # Markdownlint deferred — link validation + app quality gates cover Phase 1 CI scope.
@@ -59,7 +60,11 @@ jobs:
           node-version: "20"
           cache: npm
       - run: npm ci
-      - run: npm audit --audit-level=high
+      # Production dependency gate: fail on high/critical in the runtime tree.
+      - run: npm audit --omit=dev --audit-level=high
+      # Full tree: fail on critical (incl. tooling). Remaining highs are currently
+      # transitive picomatch ReDoS (GHSA-fc5q-39xc-vjpf) with no upstream release.
+      - run: npm audit --audit-level=critical
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run test

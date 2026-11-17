@@ -250,6 +250,25 @@ describeDb("Phase 1 RLS integration", () => {
     }
   });
 
+  async function roleKeysForUser(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- test helper over untyped supabase client
+    admin: any,
+    userId: string,
+  ): Promise<string[]> {
+    const { data: roleRows, error: roleError } = await admin
+      .from("user_roles")
+      .select("roles(key)")
+      .eq("user_id", userId);
+    expect(roleError).toBeNull();
+    return ((roleRows ?? []) as Array<{
+      roles: { key: string } | { key: string }[] | null;
+    }>).flatMap((row) => {
+      const nested = row.roles;
+      if (!nested) return [];
+      return Array.isArray(nested) ? nested.map((r) => r.key) : [nested.key];
+    });
+  }
+
   it("bootstrap_oauth_user is callable as service_role and assigns mutually exclusive roles", async () => {
     const newAuthId = randomUUID();
     const email = `bootstrap-${newAuthId.slice(0, 8)}@example.test`;
@@ -281,19 +300,113 @@ describeDb("Phase 1 RLS integration", () => {
     );
     expect(secondError).toBeNull();
     expect(secondId).toBe(firstId);
+    expect(await roleKeysForUser(admin, firstId as string)).toEqual([
+      "administrator",
+    ]);
+  });
 
-    const { data: roleRows, error: roleError } = await admin
-      .from("user_roles")
-      .select("roles(key)")
-      .eq("user_id", firstId);
-
-    expect(roleError).toBeNull();
-    const keys = (roleRows ?? []).flatMap((row) => {
-      const nested = row.roles as { key: string } | { key: string }[] | null;
-      if (!nested) return [];
-      return Array.isArray(nested) ? nested.map((r) => r.key) : [nested.key];
+  it("staff_submitter bootstrap never retains read_only or audit/jobs permissions", async () => {
+    const newAuthId = randomUUID();
+    const email = `staff-${newAuthId.slice(0, 8)}@example.test`;
+    const admin = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
     });
-    expect(keys).toEqual(["administrator"]);
+
+    const { data: userId, error } = await admin.rpc("bootstrap_oauth_user", {
+      p_auth_user_id: newAuthId,
+      p_email: email,
+      p_display_name: "Staff Submitter",
+      p_role_key: "staff_submitter",
+    });
+    expect(error).toBeNull();
+    expect(userId).toBeTruthy();
+    expect(await roleKeysForUser(admin, userId as string)).toEqual([
+      "staff_submitter",
+    ]);
+
+    // Re-login with staff_submitter must stay exclusive (no read_only overlay).
+    const { error: reloginError } = await admin.rpc("bootstrap_oauth_user", {
+      p_auth_user_id: newAuthId,
+      p_email: email,
+      p_display_name: "Staff Submitter",
+      p_role_key: "staff_submitter",
+    });
+    expect(reloginError).toBeNull();
+    expect(await roleKeysForUser(admin, userId as string)).toEqual([
+      "staff_submitter",
+    ]);
+
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(`SELECT set_config('request.jwt.claim.sub', $1, true)`, [
+        newAuthId,
+      ]);
+      await client.query(
+        `SELECT set_config('request.jwt.claim.role', 'authenticated', true)`,
+      );
+      await client.query("SET LOCAL ROLE authenticated");
+
+      const audit = await client.query(
+        `SELECT public.has_permission('audit.read') AS allowed`,
+      );
+      const jobs = await client.query(
+        `SELECT public.has_permission('jobs.read') AS allowed`,
+      );
+      const access = await client.query(
+        `SELECT public.has_permission('app.access') AS allowed`,
+      );
+      expect(audit.rows[0].allowed).toBe(false);
+      expect(jobs.rows[0].allowed).toBe(false);
+      expect(access.rows[0].allowed).toBe(true);
+
+      await client.query("ROLLBACK");
+    } finally {
+      client.release();
+    }
+  });
+
+  it("disabled accounts cannot self-reactivate via bootstrap_oauth_user", async () => {
+    const newAuthId = randomUUID();
+    const email = `disabled-${newAuthId.slice(0, 8)}@example.test`;
+    const admin = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+
+    const { data: userId, error } = await admin.rpc("bootstrap_oauth_user", {
+      p_auth_user_id: newAuthId,
+      p_email: email,
+      p_display_name: "Disabled User",
+      p_role_key: "read_only",
+    });
+    expect(error).toBeNull();
+    expect(userId).toBeTruthy();
+
+    const { error: deactivateError } = await admin
+      .from("users")
+      .update({ status: "inactive" })
+      .eq("id", userId);
+    expect(deactivateError).toBeNull();
+
+    const { data: retryId, error: retryError } = await admin.rpc(
+      "bootstrap_oauth_user",
+      {
+        p_auth_user_id: newAuthId,
+        p_email: email,
+        p_display_name: "Disabled User",
+        p_role_key: "read_only",
+      },
+    );
+    expect(retryId).toBeNull();
+    expect(retryError).not.toBeNull();
+    expect(retryError?.message ?? "").toMatch(/inactive|not active|disabled/i);
+
+    const { data: statusRow } = await admin
+      .from("users")
+      .select("status")
+      .eq("id", userId)
+      .single();
+    expect(statusRow?.status).toBe("inactive");
   });
 
   it("authenticated and anon cannot execute bootstrap_oauth_user", async () => {

@@ -1,10 +1,12 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { getServerEnv, resetEnvCacheForTests } from "@/lib/env";
 
-describe("AUTH_ADMIN_EMAILS parsing", () => {
+describe("AUTH role email list parsing", () => {
   afterEach(() => {
     delete process.env.AUTH_ALLOWLIST_EMAILS;
     delete process.env.AUTH_ADMIN_EMAILS;
+    delete process.env.AUTH_STAFF_SUBMITTER_EMAILS;
+    delete process.env.AUTH_HR_REVIEWER_EMAILS;
     resetEnvCacheForTests();
   });
 
@@ -31,5 +33,17 @@ describe("AUTH_ADMIN_EMAILS parsing", () => {
     resetEnvCacheForTests();
 
     expect(getServerEnv().authAdminEmails).toEqual([]);
+  });
+
+  it("parses restricted staff and reviewer email lists", () => {
+    process.env.AUTH_ALLOWLIST_EMAILS =
+      "cathi@example.com, reviewer@example.com";
+    process.env.AUTH_STAFF_SUBMITTER_EMAILS = " Cathi@Example.com ";
+    process.env.AUTH_HR_REVIEWER_EMAILS = "reviewer@example.com";
+    resetEnvCacheForTests();
+
+    const env = getServerEnv();
+    expect(env.authStaffSubmitterEmails).toEqual(["cathi@example.com"]);
+    expect(env.authHrReviewerEmails).toEqual(["reviewer@example.com"]);
   });
 });
