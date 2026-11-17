@@ -349,12 +349,19 @@ describeDb("Phase 2 Slice A RLS integration", () => {
     try {
       await client.query("BEGIN");
       await client.query("SET LOCAL ROLE anon");
+
+      await client.query("SAVEPOINT anon_tasks");
       await expect(client.query(`SELECT * FROM public.tasks`)).rejects.toThrow(
         /permission denied/i,
       );
+      await client.query("ROLLBACK TO SAVEPOINT anon_tasks");
+
+      await client.query("SAVEPOINT anon_orgs");
       await expect(
         client.query(`SELECT * FROM public.organizations`),
       ).rejects.toThrow(/permission denied/i);
+      await client.query("ROLLBACK TO SAVEPOINT anon_orgs");
+
       await client.query("ROLLBACK");
     } finally {
       client.release();
@@ -541,6 +548,7 @@ describeDb("Phase 2 Slice A RLS integration", () => {
 
   it("authenticated cannot INSERT into Phase 2 tables; inactive identity has no access", async () => {
     await asUser(submitterAAuthId, async (client) => {
+      await client.query("SAVEPOINT deny_insert");
       await expect(
         client.query(
           `INSERT INTO public.tasks (
@@ -550,6 +558,7 @@ describeDb("Phase 2 Slice A RLS integration", () => {
           [orgAId, submitterAId],
         ),
       ).rejects.toThrow(/permission denied|policy/i);
+      await client.query("ROLLBACK TO SAVEPOINT deny_insert");
     });
 
     await asUser(inactiveAuthId, async (client) => {
