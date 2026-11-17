@@ -20,9 +20,9 @@ Phase 0 is split:
 | **Phase 0A** | Architecture, security, stack, queue+worker auth, MCP hosting shape, classification, Phase 1 spec, repo operating docs | **Yes** — must be approved |
 | **Phase 0B** | Live JazzHR / Google / Drive / external-system proofs | **No** — hard gate for matching/integrations only |
 
-**Blocking before any application code:** GitHub repository must be **Private**.
+**Blocking before any application code:** Phase 0A approval. Repository remains **intentionally public** for Code Coach review; secrets and HR PII must never be committed.
 
-**Proceed-to-Phase-1 recommendation:** After Phase 0A approval + private repo, start the secure shell while Phase 0B continues in parallel. Do **not** wait on JazzHR résumé bytes to scaffold auth, RBAC, audit, nav, flags, or CI.
+**Proceed-to-Phase-1 recommendation:** After Phase 0A approval, start the secure shell while Phase 0B continues in parallel. Do **not** wait on JazzHR résumé bytes to scaffold auth, RBAC, audit, nav, flags, or CI. Do **not** change repository visibility.
 
 ---
 
@@ -36,10 +36,10 @@ Phase 0 is split:
 | Database / migrations | None |
 | Auth | None |
 | CI/CD | Docs/secret-scan workflow added (`.github/workflows/phase0-checks.yml`) |
-| Vercel project | Not connected — do not create until private repo + 0A |
+| Vercel project | Not connected — create after 0A; repo stays intentionally public |
 | Tests | Docs CI only |
 | Git | Remote `origin` → `https://github.com/RVA-Ranks/HRIS-SUite.git`; default branch **`main`**; baseline commit **`e80292f`** |
-| Visibility | **Must remain Private** before application code (re-confirmed when fixing CI; grant ChatGPT/Codex GitHub app access explicitly — do not reopen publicly) |
+| Visibility | **Intentionally public** for Code Coach review (D00); never commit secrets or HR data |
 | Secrets in repo | None observed; `.gitignore` + `.env.example` (names only) |
 
 **Implication:** Phase 1 creates the application from a clean scaffold on a feature branch + PR. Do not “preserve” nonexistent modules. Do not commit Phase 1 directly to `main`.
@@ -484,13 +484,13 @@ Queryable business fields are normalized columns. JSON only for controlled raw p
 
 **Phase 1 coding** may begin after:
 
-- Repository is **Private**  
 - Phase **0A** approved by Daniel (+ Code Coach as required)  
 - Queue choice (Trigger.dev) and worker authorization approach approved  
+- Repository remains intentionally public; secrets/HR data stay out of git  
 
 JazzHR/Google **0B** proofs continue in parallel. Integrations remain disabled in the shell until each proof passes.
 
-Do not create Vercel / Supabase / Trigger.dev / Google OAuth / OpenAI **production** connections until private repo, env boundaries, secret ownership, fabricated staging data, and worker authorization are approved.
+Do not create Vercel / Supabase / Trigger.dev / Google OAuth / OpenAI **production** connections until env boundaries, secret ownership, fabricated staging data, and worker authorization are approved.
 
 ---
 

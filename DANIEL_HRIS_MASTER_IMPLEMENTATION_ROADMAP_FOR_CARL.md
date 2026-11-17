@@ -4,9 +4,9 @@
 
 **Document owner:** Daniel Alexander  
 **Primary implementation agent:** Carl (Cursor AI)  
-**Document status:** Planning baseline; Phase 1 application code requires Phase 0A approval and a private repository  
-**Last updated:** August 5, 2026  
-**Revision:** 1.4 — Phase 0A/0B split, repo operating docs, worker security, Drive OAuth correction  
+**Document status:** Phase 1 foundation merged (PR #2). Repository remains **intentionally public** for Code Coach review; never commit secrets or HR data. Phase 2 coding awaits kickoff approval.  
+**Last updated:** November 17, 2026  
+**Revision:** 1.5 — Public-repo posture; Phase 1 merged; Phase 2 Shared Open Item Tracker pending approval  
 **Primary timezone:** America/New_York  
 **Phase 0 working docs:** `docs/phase-0/` · Agent rules: `AGENTS.md` · Overview: `README.md`  
 
@@ -427,12 +427,12 @@ Remove architectural unknowns before implementation. This phase is complete only
 
 **Repository posture:** This HR Command Center repository is greenfield. Carl must not spend Phase 0 hunting for an existing Next.js/HRIS codebase in-repo. Performance Reviews, Compensation Adjustment, compliance registers, and related Google Apps Script / Sheet / Drive / Adobe Sign workflows are external **reference implementations**. Inventory them through approved access; do not copy, migrate, or rewrite them in Phase 0. Phase 1 builds a clean Daniel-only shell with manual intake and linked records; automation is earned later through proven integrations.
 
-**Phase 0 time-box:** Split into **Phase 0A** (architecture & security) and **Phase 0B** (live integration proofs). Phase 1 secure-shell work may begin after **0A** approval and a **private** GitHub repository, while 0B remains open. Any unknown remains explicitly unknown—no guessing. Track decisions in `docs/phase-0/DECISION_REGISTER.md`. Use feature branches and pull requests; do not commit application code directly to `main`.
+**Phase 0 time-box:** Split into **Phase 0A** (architecture & security) and **Phase 0B** (live integration proofs). Phase 1 secure-shell work may begin after **0A** approval while the repository remains **intentionally public** for Code Coach review (no secrets or HR data in git); 0B remains open. Any unknown remains explicitly unknown—no guessing. Track decisions in `docs/phase-0/DECISION_REGISTER.md`. Use feature branches and pull requests; do not commit application code directly to `main`.
 
 ### Phase 0A — architecture & security (blocks Phase 1 shell)
 
 - Repo confirmation and greenfield architecture baseline
-- Repository made **private** before application code
+- Repository visibility locked as **intentionally public** for review; secrets/HR PII never committed
 - `README.md` / `AGENTS.md` operating instructions
 - Systems inventory posture and credentials/access matrix (names/status only)
 - Durable queue recommendation with **official vendor documentation**, payload minimization, DPA/retention notes, and worker authorization boundary (no default Supabase service-role)
@@ -816,6 +816,8 @@ No business module begins until authentication, authorization, migrations, audit
 Deliver a useful application before external automation. Daniel must be able to manually create, view, update, filter, and connect positions, tasks, deadlines, notes, approvals, and links to existing systems.
 
 This phase proves the internal record model and user experience without allowing external API uncertainty to control the design.
+
+**Governing kickoff (pending approval):** `docs/phase-2/PHASE_2_KICKOFF.md` adds a Shared Open Item Tracker with a restricted `staff_submitter` role as an extension of `tasks`. Do not begin Phase 2 implementation until that kickoff is approved. Amend D07/D23 accordingly.
 
 ## 10.1 Core entities
 
@@ -2167,10 +2169,17 @@ The guiding standard is simple: **nothing external happens silently, nothing sen
 
 ### Revision 1.4 — August 5, 2026
 
-- Split Phase 0 into **0A** (architecture/security) and **0B** (live integration proofs); Phase 1 shell may proceed after 0A + private repo.
-- Required private GitHub repository before application code; feature-branch/PR workflow; `README.md` and `AGENTS.md`.
+- Split Phase 0 into **0A** (architecture/security) and **0B** (live integration proofs); Phase 1 shell may proceed after 0A.
+- Feature-branch/PR workflow; `README.md` and `AGENTS.md`.
 - Hardened Trigger.dev recommendation with official vendor docs, IDs-first payloads, DPA/retention notes, and non-default service-role worker boundary (`WORKER_AUTHORIZATION.md`).
 - Corrected Google Drive security language: scopes ≠ folder restrictions; enforce allowlists server-side.
 - Added `.env.example`, Phase 0 CI (gitleaks + markdown link check).
 - Clarified JazzHR résumé proof blocks matching, not the secure shell.
+
+### Revision 1.5 — November 17, 2026
+
+- Corrected governing docs: repository is **intentionally public** for Code Coach review; never commit secrets, employee data, résumés, or production configuration.
+- Phase 1 Secure Platform Foundation merged via PR #2 (`8d303e9` squash into `main`).
+- Phase 2 kickoff revised to Shared Open Item Tracker + restricted `staff_submitter` (pending Daniel approval before coding).
+- Decision Register D03/D07/D23 updated for public-repo hosting, proposed staff exception, and attachment storage gate.
 
