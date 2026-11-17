@@ -1,10 +1,11 @@
 # Phase 2 start report — Command Center + Shared Open Item Tracker
 
-**Status:** Entry gates complete on `main` @ `7a944a8`. This report is the implementation plan; **feature PRs start only after Daniel confirms this start report.**  
+**Status:** Start report approved (PR #5). Slice A authorized under `docs/phase-2/SLICE_A_ACCEPTANCE.md`.  
 **Branch:** `phase-2/command-center-mvp` (from updated `main`, not `83a6935`).  
-**Governing kickoff:** `docs/phase-2/PHASE_2_KICKOFF.md` (Code Coach conditional design approval; security gates now merged).  
+**Governing kickoff:** `docs/phase-2/PHASE_2_KICKOFF.md`.  
 **Timezone:** `America/New_York`.  
-**Data rule:** fabricated records and attachments only. No production staff access. No real HR documents.
+**Data rule:** fabricated records and attachments only. No production staff access. No real HR documents.  
+**Invariant:** Enable default-deny RLS in the **same** migration that creates each operational table.
 
 ---
 
@@ -29,9 +30,9 @@ Additive only; apply after Phase 1 migrations including role-isolation.
 1. `supabase/migrations/20261118000000_phase2_core_entities.sql` — orgs/clients/projects/positions/requirements/tasks/deadlines/notes/entity_links/approvals/activity/notifications + enums/FKs/indexes  
 2. `supabase/migrations/20261118010000_phase2_open_items_comments_attachments.sql` — task comments, documents/attachments metadata, idempotency keys, open-item source/status checks  
 3. `supabase/migrations/20261118020000_phase2_permissions_rls.sql` — Phase 2 permission keys, role grants for `staff_submitter` / `hr_reviewer` / admin, RLS policies  
-4. `supabase/migrations/20261118030000_phase2_storage_bucket.sql` — private bucket `open-item-attachments-staging` policies (no public read/list)  
+4. ~~`supabase/migrations/20261118030000_phase2_storage_bucket.sql`~~ — **Slice C only** (not Slice A)
 
-Filenames may shift by a few minutes in the timestamp prefix; order and purpose stay fixed.
+Slice A keeps filenames 000000 / 010000 / 020000 stable per acceptance contract.
 
 ---
 

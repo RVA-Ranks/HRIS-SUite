@@ -3,6 +3,7 @@ import {
   hasAnyPermission,
   hasPermission,
   PERMISSION_KEYS,
+  PHASE2_PERMISSION_KEYS,
   ROLE_KEYS,
 } from "@/server/auth/permissions";
 
@@ -35,5 +36,13 @@ describe("permissions", () => {
     expect(ROLE_KEYS.READ_ONLY).toBe("read_only");
     expect(ROLE_KEYS.STAFF_SUBMITTER).toBe("staff_submitter");
     expect(ROLE_KEYS.HR_REVIEWER).toBe("hr_reviewer");
+  });
+
+  it("lists Phase 2 permission keys without granting them to read_only by type alone", () => {
+    expect(PHASE2_PERMISSION_KEYS).toContain(PERMISSION_KEYS.TASKS_CREATE_OWN);
+    expect(PHASE2_PERMISSION_KEYS).toContain(PERMISSION_KEYS.COMPENSATION_READ);
+    expect(
+      hasPermission(["app.access", "audit.read"], PERMISSION_KEYS.TASKS_CREATE_OWN),
+    ).toBe(false);
   });
 });
